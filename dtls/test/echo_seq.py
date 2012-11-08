@@ -47,7 +47,7 @@ def main():
     print "Accepting..."
     conn = scn.accept()
     sck.settimeout(5)
-    conn.rsock.settimeout(5)
+    conn.get_socket(True).settimeout(5)
 
     cnt = 0
     while True:

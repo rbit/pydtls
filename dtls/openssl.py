@@ -3,19 +3,16 @@
 """OpenSSL Wrapper
 
 This module provides run-time access to the OpenSSL cryptographic and
-protocols libraries.
+protocols libraries. It is designed for use with "from openssl import *". For
+this reason, the module variable __all__ contains all of this module's
+integer constants, OpenSSL library functions, and wrapper functions.
+
+Constants and functions are not documented here. See the OpenSSL library
+documentation.
 
 Exceptions:
 
   OpenSSLError -- exception raised when errors occur in the OpenSSL library
-
-Functions:
-
-Integer constants:
-
-  BIO_NOCLOSE -- don't destroy encapsulated resource when closing BIO
-  BIO_CLOSE -- do destroy encapsulated resource when closing BIO
-
 """
 
 import sys
@@ -25,14 +22,15 @@ from logging import getLogger
 from os import path
 from err import OpenSSLError
 from err import SSL_ERROR_NONE
+from util import _BIO
 import ctypes
 from ctypes import CDLL
 from ctypes import CFUNCTYPE
-from ctypes import c_void_p, c_int, c_uint, c_ulong, c_char_p, c_size_t
+from ctypes import c_void_p, c_int, c_long, c_uint, c_ulong, c_char_p, c_size_t
 from ctypes import c_short, c_ushort, c_ubyte, c_char
-from ctypes import byref, POINTER
+from ctypes import byref, POINTER, addressof
 from ctypes import Structure, Union
-from ctypes import create_string_buffer, sizeof, memmove
+from ctypes import create_string_buffer, sizeof, memmove, cast
 
 #
 # Module initialization
@@ -44,10 +42,19 @@ _logger = getLogger(__name__)
 #
 if sys.platform.startswith('win'):
     dll_path = path.abspath(path.dirname(__file__))
-    #libcrypto = CDLL(path.join(dll_path, "libeay32.dll"))
-    #libssl = CDLL(path.join(dll_path, "ssleay32.dll"))
-    libcrypto = CDLL(path.join(dll_path, "cygcrypto-1.0.0.dll"))
-    libssl = CDLL(path.join(dll_path, "cygssl-1.0.0.dll"))
+    debug_cryptodll_path = path.join(dll_path, "cygcrypto-1.0.0.dll")
+    debug_ssldll_path = path.join(dll_path, "cygssl-1.0.0.dll")
+    release_cryptodll_path = path.join(dll_path, "libeay32.dll")
+    release_ssldll_path = path.join(dll_path, "ssleay32.dll")
+    if path.exists(path.join(dll_path, "use_debug_openssl")) and \
+      path.exists(debug_cryptodll_path) and \
+      path.exists(debug_ssldll_path):
+        libcrypto = CDLL(debug_cryptodll_path)
+        libssl = CDLL(debug_ssldll_path)
+    else:
+        # If these don't exist, then let the exception propagate
+        libcrypto = CDLL(release_cryptodll_path)
+        libssl = CDLL(release_ssldll_path)
 else:
     libcrypto = CDLL("libcrypto.so.1.0.0")
     libssl = CDLL("libssl.so.1.0.0")
@@ -71,22 +78,27 @@ SSL_SESS_CACHE_NO_INTERNAL_STORE = 0x0200
 SSL_SESS_CACHE_NO_INTERNAL = \
   SSL_SESS_CACHE_NO_INTERNAL_LOOKUP | SSL_SESS_CACHE_NO_INTERNAL_STORE
 SSL_FILE_TYPE_PEM = 1
+GEN_DIRNAME = 4
+NID_subject_alt_name = 85
 
 #
 # Integer constants - internal
 #
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
 SSL_CTRL_SET_READ_AHEAD = 41
+BIO_CTRL_INFO = 3
 BIO_CTRL_DGRAM_SET_CONNECTED = 32
 BIO_CTRL_DGRAM_GET_PEER = 46
 BIO_CTRL_DGRAM_SET_PEER = 44
 BIO_C_SET_NBIO = 102
 DTLS_CTRL_LISTEN = 75
+X509_NAME_MAXLEN = 256
+GETS_MAXLEN = 2048
 
 #
 # Parameter data types
 #
-class c_long(object):
+class c_long_parm(object):
     """Long integer paramter class
 
     c_long must be distinguishable from c_int, as the latter is associated
@@ -107,10 +119,18 @@ class FuncParam(object):
     def __init__(self, value):
         self._as_parameter = value
 
+    def __nonzero__(self):
+        return bool(self._as_parameter)
+
 
 class DTLSv1Method(FuncParam):
     def __init__(self, value):
         super(DTLSv1Method, self).__init__(value)
+
+
+class BIO_METHOD(FuncParam):
+    def __init__(self, value):
+        super(BIO_METHOD, self).__init__(value)
 
 
 class SSLCTX(FuncParam):
@@ -126,6 +146,106 @@ class SSL(FuncParam):
 class BIO(FuncParam):
     def __init__(self, value):
         super(BIO, self).__init__(value)
+
+
+class X509(FuncParam):
+    def __init__(self, value):
+        super(X509, self).__init__(value)
+
+
+class X509_val_st(Structure):
+    _fields_ = [("notBefore", c_void_p),
+                ("notAfter", c_void_p)]
+
+
+class X509_cinf_st(Structure):
+    _fields_ = [("version", c_void_p),
+                ("serialNumber", c_void_p),
+                ("signature", c_void_p),
+                ("issuer", c_void_p),
+                ("validity", POINTER(X509_val_st))]  # remaining fields omitted
+
+
+class X509_st(Structure):
+    _fields_ = [("cert_info", POINTER(X509_cinf_st),)]  # remainder omitted
+
+
+class X509_name_st(Structure):
+    _fields_ = [("entries", c_void_p)]  # remaining fields omitted
+
+
+class ASN1_OBJECT(FuncParam):
+    def __init__(self, value):
+        super(ASN1_OBJECT, self).__init__(value)
+
+
+class ASN1_STRING(FuncParam):
+    def __init__(self, value):
+        super(ASN1_STRING, self).__init__(value)
+
+
+class ASN1_TIME(FuncParam):
+    def __init__(self, value):
+        super(ASN1_TIME, self).__init__(value)
+
+
+class SSL_CIPHER(FuncParam):
+    def __init__(self, value):
+        super(SSL_CIPHER, self).__init__(value)
+
+
+class GENERAL_NAME_union_d(Union):
+    _fields_ = [("ptr", c_char_p),
+                # entries omitted
+                ("directoryName", POINTER(X509_name_st))]
+                # remaining fields omitted
+
+
+class STACK(FuncParam):
+    def __init__(self, value):
+        super(STACK, self).__init__(value)
+
+
+class GENERAL_NAME(Structure):
+    _fields_ = [("type", c_int),
+                ("d", GENERAL_NAME_union_d)]
+
+
+class GENERAL_NAMES(STACK):
+    stack_element_type = GENERAL_NAME
+
+    def __init__(self, value):
+        super(GENERAL_NAMES, self).__init__(value)
+
+
+class X509_NAME_ENTRY(Structure):
+    _fields_ = [("object", c_void_p),
+                ("value", c_void_p),
+                ("set", c_int),
+                ("size", c_int)]
+
+
+class ASN1_OCTET_STRING(Structure):
+    _fields_ = [("length", c_int),
+                ("type", c_int),
+                ("data", POINTER(c_ubyte)),
+                ("flags", c_long)]
+
+
+class X509_EXTENSION(Structure):
+    _fields_ = [("object", c_void_p),
+                ("critical", c_int),
+                ("value", POINTER(ASN1_OCTET_STRING))]
+
+
+class X509V3_EXT_METHOD(Structure):
+    _fields_ = [("ext_nid", c_int),
+                ("ext_flags", c_int),
+                ("it", c_void_p),
+                ("ext_new", c_int),
+                ("ext_free", c_int),
+                ("d2i", c_int),
+                ("i2d", c_int)]  # remaining fields omitted
 
 
 #
@@ -293,7 +413,7 @@ def _make_function(name, lib, args, export=True, errcheck="default"):
         if args[0][0] in (c_int,):
             errcheck = errcheck_ord
         elif args[0][0] in (c_void_p, c_char_p) or \
-          isinstance(args[0][0], FuncParam):
+          isinstance(args[0][0], type) and issubclass(args[0][0], FuncParam):
             errcheck = errcheck_p
         else:
             errcheck = None
@@ -301,7 +421,7 @@ def _make_function(name, lib, args, export=True, errcheck="default"):
         func.errcheck = errcheck
     globals()[glbl_name] = func
 
-_subst = {c_long: ctypes.c_long}
+_subst = {c_long_parm: c_long}
 _sigs = {}
 __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
            "SSL_VERIFY_NONE", "SSL_VERIFY_PEER",
@@ -311,13 +431,21 @@ __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
            "SSL_SESS_CACHE_NO_AUTO_CLEAR", "SSL_SESS_CACHE_NO_INTERNAL_LOOKUP",
            "SSL_SESS_CACHE_NO_INTERNAL_STORE", "SSL_SESS_CACHE_NO_INTERNAL",
            "SSL_FILE_TYPE_PEM",
+           "GEN_DIRNAME", "NID_subject_alt_name",
            "DTLSv1_listen",
+           "BIO_gets", "BIO_read", "BIO_get_mem_data",
            "BIO_dgram_set_connected",
            "BIO_dgram_get_peer", "BIO_dgram_set_peer",
            "BIO_set_nbio",
            "SSL_CTX_set_session_cache_mode", "SSL_CTX_set_read_ahead",
            "SSL_read", "SSL_write",
-           "SSL_CTX_set_cookie_cb"]
+           "SSL_CTX_set_cookie_cb",
+           "OBJ_obj2txt", "decode_ASN1_STRING", "ASN1_TIME_print",
+           "X509_get_notAfter",
+           "ASN1_item_d2i", "GENERAL_NAME_print",
+           "sk_value",
+           "sk_pop_free",
+           "i2d_X509"]  # note: the following map adds to this list
 
 map(lambda x: _make_function(*x), (
     ("SSL_library_init", libssl, ((c_int, "ret"),)),
@@ -335,19 +463,28 @@ map(lambda x: _make_function(*x), (
     ("SSL_free", libssl, ((None, "ret"), (SSL, "ssl"))),
     ("SSL_set_bio", libssl,
      ((None, "ret"), (SSL, "ssl"), (BIO, "rbio"), (BIO, "wbio"))),
+    ("BIO_new", libcrypto, ((BIO, "ret"), (BIO_METHOD, "type"))),
+    ("BIO_s_mem", libcrypto, ((BIO_METHOD, "ret"),)),
+    ("BIO_new_file", libcrypto,
+     ((BIO, "ret"), (c_char_p, "filename"), (c_char_p, "mode"))),
     ("BIO_new_dgram", libcrypto,
      ((BIO, "ret"), (c_int, "fd"), (c_int, "close_flag"))),
     ("BIO_free", libcrypto, ((c_int, "ret"), (BIO, "a"))),
+    ("BIO_gets", libcrypto,
+     ((c_int, "ret"), (BIO, "b"), (POINTER(c_char), "buf"), (c_int, "size")),
+     False),
+    ("BIO_read", libcrypto,
+     ((c_int, "ret"), (BIO, "b"), (c_void_p, "buf"), (c_int, "len")), False),
     ("SSL_CTX_ctrl", libssl,
-     ((c_long, "ret"), (SSLCTX, "ctx"), (c_int, "cmd"), (c_long, "larg"),
+     ((c_long_parm, "ret"), (SSLCTX, "ctx"), (c_int, "cmd"), (c_long, "larg"),
       (c_void_p, "parg")), False),
     ("BIO_ctrl", libcrypto,
-     ((c_long, "ret"), (BIO, "bp"), (c_int, "cmd"), (c_long, "larg"),
+     ((c_long_parm, "ret"), (BIO, "bp"), (c_int, "cmd"), (c_long, "larg"),
       (c_void_p, "parg")), False),
     ("SSL_ctrl", libssl,
-     ((c_long, "ret"), (SSL, "ssl"), (c_int, "cmd"), (c_long, "larg"),
+     ((c_long_parm, "ret"), (SSL, "ssl"), (c_int, "cmd"), (c_long, "larg"),
       (c_void_p, "parg")), False),
-    ("ERR_get_error", libcrypto, ((c_long, "ret"),), False),
+    ("ERR_get_error", libcrypto, ((c_long_parm, "ret"),), False),
     ("ERR_error_string_n", libcrypto,
      ((None, "ret"), (c_ulong, "e"), (c_char_p, "buf"), (c_size_t, "len")),
      False),
@@ -372,6 +509,7 @@ map(lambda x: _make_function(*x), (
     ("SSL_set_connect_state", libssl, ((None, "ret"), (SSL, "ssl"))),
     ("SSL_set_accept_state", libssl, ((None, "ret"), (SSL, "ssl"))),
     ("SSL_do_handshake", libssl, ((c_int, "ret"), (SSL, "ssl"))),
+    ("SSL_get_peer_certificate", libssl, ((X509, "ret"), (SSL, "ssl"))),
     ("SSL_read", libssl,
      ((c_int, "ret"), (SSL, "ssl"), (c_void_p, "buf"), (c_int, "num")), False),
     ("SSL_write", libssl,
@@ -379,6 +517,59 @@ map(lambda x: _make_function(*x), (
     ("SSL_shutdown", libssl, ((c_int, "ret"), (SSL, "ssl"))),
     ("SSL_set_read_ahead", libssl,
      ((None, "ret"), (SSL, "ssl"), (c_int, "yes"))),
+    ("X509_free", libcrypto, ((None, "ret"), (X509, "a"))),
+    ("PEM_read_bio_X509_AUX", libcrypto,
+     ((X509, "ret"), (BIO, "bp"), (c_void_p, "x", 1, None),
+      (c_void_p, "cb", 1, None), (c_void_p, "u", 1, None))),
+    ("OBJ_obj2txt", libcrypto,
+     ((c_int, "ret"), (POINTER(c_char), "buf"), (c_int, "buf_len"),
+      (ASN1_OBJECT, "a"), (c_int, "no_name")), False),
+    ("CRYPTO_free", libcrypto, ((None, "ret"), (c_void_p, "ptr"))),
+    ("ASN1_STRING_to_UTF8", libcrypto,
+     ((c_int, "ret"), (POINTER(POINTER(c_ubyte)), "out"), (ASN1_STRING, "in")),
+     False),
+    ("X509_NAME_entry_count", libcrypto,
+     ((c_int, "ret"), (POINTER(X509_name_st), "name")), True, None),
+    ("X509_NAME_get_entry", libcrypto,
+     ((POINTER(X509_NAME_ENTRY), "ret"), (POINTER(X509_name_st), "name"),
+      (c_int, "loc")), True, errcheck_p),
+    ("X509_NAME_ENTRY_get_object", libcrypto,
+     ((ASN1_OBJECT, "ret"), (POINTER(X509_NAME_ENTRY), "ne"))),
+    ("X509_NAME_ENTRY_get_data", libcrypto,
+     ((ASN1_STRING, "ret"), (POINTER(X509_NAME_ENTRY), "ne"))),
+    ("X509_get_subject_name", libcrypto,
+     ((POINTER(X509_name_st), "ret"), (X509, "a")), True, errcheck_p),
+    ("ASN1_TIME_print", libcrypto,
+     ((c_int, "ret"), (BIO, "fp"), (ASN1_TIME, "a")), False),
+    ("X509_get_ext_by_NID", libcrypto,
+     ((c_int, "ret"), (X509, "x"), (c_int, "nid"), (c_int, "lastpos")),
+     True, None),
+    ("X509_get_ext", libcrypto,
+     ((POINTER(X509_EXTENSION), "ret"), (X509, "x"), (c_int, "loc")),
+     True, errcheck_p),
+    ("X509V3_EXT_get", libcrypto,
+     ((POINTER(X509V3_EXT_METHOD), "ret"), (POINTER(X509_EXTENSION), "ext")),
+     True, errcheck_p),
+    ("ASN1_item_d2i", libcrypto,
+     ((c_void_p, "ret"), (c_void_p, "val"), (POINTER(POINTER(c_ubyte)), "in"),
+      (c_long, "len"), (c_void_p, "it")), False, None),
+    ("sk_num", libcrypto, ((c_int, "ret"), (STACK, "stack")), True, None),
+    ("sk_value", libcrypto,
+     ((c_void_p, "ret"), (STACK, "stack"), (c_int, "loc")), False),
+    ("GENERAL_NAME_print", libcrypto,
+     ((c_int, "ret"), (BIO, "out"), (POINTER(GENERAL_NAME), "gen")), False),
+    ("sk_pop_free", libcrypto,
+     ((None, "ret"), (STACK, "st"), (c_void_p, "func")), False),
+    ("i2d_X509_bio", libcrypto, ((c_int, "ret"), (BIO, "bp"), (X509, "x")),
+     False),
+    ("SSL_get_current_cipher", libssl, ((SSL_CIPHER, "ret"), (SSL, "ssl"))),
+    ("SSL_CIPHER_get_name", libssl,
+     ((c_char_p, "ret"), (SSL_CIPHER, "cipher"))),
+    ("SSL_CIPHER_get_version", libssl,
+     ((c_char_p, "ret"), (SSL_CIPHER, "cipher"))),
+    ("SSL_CIPHER_get_bits", libssl,
+     ((c_int, "ret"), (SSL_CIPHER, "cipher"),
+      (POINTER(c_int), "alg_bits", 1, None)), True, None),
     ))
 
 #
@@ -447,9 +638,88 @@ def DTLSv1_listen(ssl):
 
 def SSL_read(ssl, length):
     buf = create_string_buffer(length)
-    res_len = _SSL_read(ssl, buf, length)
+    res_len = _SSL_read(ssl, buf, sizeof(buf))
     return buf.raw[:res_len]
 
 def SSL_write(ssl, data):
     str_data = str(data)
     return _SSL_write(ssl, str_data, len(str_data))
+
+def OBJ_obj2txt(asn1_object, no_name):
+    buf = create_string_buffer(X509_NAME_MAXLEN)
+    res_len = _OBJ_obj2txt(buf, sizeof(buf), asn1_object, 1 if no_name else 0)
+    return buf.raw[:res_len]
+
+def decode_ASN1_STRING(asn1_string):
+    utf8_buf_ptr = POINTER(c_ubyte)()
+    res_len = _ASN1_STRING_to_UTF8(byref(utf8_buf_ptr), asn1_string)
+    try:
+        return unicode(''.join([chr(i) for i in utf8_buf_ptr[:res_len]]),
+                       'utf-8')
+    finally:
+        CRYPTO_free(utf8_buf_ptr)
+
+def X509_get_notAfter(x509):
+    x509_raw = X509.from_param(x509)
+    x509_ptr = cast(x509_raw, POINTER(X509_st))
+    notAfter = x509_ptr.contents.cert_info.contents.validity.contents.notAfter
+    return ASN1_TIME(notAfter)
+
+def BIO_gets(bio):
+    buf = create_string_buffer(GETS_MAXLEN)
+    res_len = _BIO_gets(bio, buf, sizeof(buf) - 1)
+    return buf.raw[:res_len]
+
+def BIO_read(bio, length):
+    buf = create_string_buffer(length)
+    res_len = _BIO_read(bio, buf, sizeof(buf))
+    return buf.raw[:res_len]
+
+def BIO_get_mem_data(bio):
+    buf = POINTER(c_ubyte)()
+    res_len = _BIO_ctrl(bio, BIO_CTRL_INFO, 0, byref(buf))
+    return ''.join([chr(i) for i in buf[:res_len]])
+
+def ASN1_TIME_print(asn1_time):
+    bio = _BIO(BIO_new(BIO_s_mem()))
+    _ASN1_TIME_print(bio.value, asn1_time)
+    return BIO_gets(bio.value)
+
+_rvoidp = CFUNCTYPE(c_void_p)
+
+def _ASN1_ITEM_ptr(item):
+    if sys.platform.startswith('win'):
+        func_ptr = _rvoidp(item)
+        return func_ptr()
+    return item
+
+_rvoidp_voidp_ubytepp_long = CFUNCTYPE(c_void_p, c_void_p,
+                                       POINTER(POINTER(c_ubyte)), c_long)
+
+def ASN1_item_d2i(method, asn1_octet_string):
+    data_in = POINTER(c_ubyte)(asn1_octet_string.data.contents)
+    if method.it:
+        return GENERAL_NAMES(_ASN1_item_d2i(None, byref(data_in),
+                                            asn1_octet_string.length,
+                                            _ASN1_ITEM_ptr(method.it)))
+    func_ptr = _rvoidp_voidp_ubytepp_long(method.d2i)
+    return GENERAL_NAMES(func_ptr(None, byref(data_in),
+                                  asn1_octet_string.length))
+
+def sk_value(stack, loc):
+    return cast(_sk_value(stack, loc), POINTER(stack.stack_element_type))
+
+def GENERAL_NAME_print(general_name):
+    bio = _BIO(BIO_new(BIO_s_mem()))
+    _GENERAL_NAME_print(bio.value, general_name)
+    return BIO_gets(bio.value)
+
+_free_func = addressof(c_void_p.in_dll(libcrypto, "sk_free"))
+
+def sk_pop_free(stack):
+    _sk_pop_free(stack, _free_func)
+
+def i2d_X509(x509):
+    bio = _BIO(BIO_new(BIO_s_mem()))
+    _i2d_X509_bio(bio.value, x509)
+    return BIO_get_mem_data(bio.value)
