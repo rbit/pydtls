@@ -29,9 +29,11 @@ import hmac
 from logging import getLogger
 from os import urandom
 from weakref import proxy
-from err import OpenSSLError, InvalidSocketError
+from err import openssl_error, InvalidSocketError
 from err import raise_ssl_error
-from err import SSL_ERROR_WANT_READ, ERR_COOKIE_MISMATCH, ERR_NO_CERTS
+from err import SSL_ERROR_WANT_READ, SSL_ERROR_SYSCALL
+from err import ERR_COOKIE_MISMATCH, ERR_NO_CERTS
+from err import ERR_NO_CIPHER, ERR_HANDSHAKE_TIMEOUT, ERR_PORT_UNREACHABLE
 from x509 import _X509, decode_cert
 from openssl import *
 from util import _Rsrc, _BIO
@@ -48,6 +50,14 @@ CERT_REQUIRED = 2
 #
 SSL_library_init()
 SSL_load_error_strings()
+DTLS_OPENSSL_VERSION_NUMBER = SSLeay()
+DTLS_OPENSSL_VERSION = SSLeay_version(SSLEAY_VERSION)
+DTLS_OPENSSL_VERSION_INFO = (
+    DTLS_OPENSSL_VERSION_NUMBER >> 28 & 0xFF,  # major
+    DTLS_OPENSSL_VERSION_NUMBER >> 20 & 0xFF,  # minor
+    DTLS_OPENSSL_VERSION_NUMBER >> 12 & 0xFF,  # fix
+    DTLS_OPENSSL_VERSION_NUMBER >> 4  & 0xFF,  # patch
+    DTLS_OPENSSL_VERSION_NUMBER       & 0xF)   # status
 
 
 class _CTX(_Rsrc):
@@ -98,9 +108,11 @@ class SSLConnection(object):
 
     _rnd_key = urandom(16)
 
-    def _init_server(self):
+    def _init_server(self, peer_address):
         if self._sock.type != socket.SOCK_DGRAM:
             raise InvalidSocketError("sock must be of type SOCK_DGRAM")
+        if peer_address:
+            raise InvalidSocketError("server-side socket must be unconnected")
 
         from demux import UDPDemux
         self._udp_demux = UDPDemux(self._sock)
@@ -127,7 +139,7 @@ class SSLConnection(object):
         self._ssl = _SSL(SSL_new(self._ctx.value))
         SSL_set_accept_state(self._ssl.value)
 
-    def _init_client(self):
+    def _init_client(self, peer_address):
         if self._sock.type != socket.SOCK_DGRAM:
             raise InvalidSocketError("sock must be of type SOCK_DGRAM")
 
@@ -141,6 +153,8 @@ class SSLConnection(object):
         self._config_ssl_ctx(verify_mode)
         self._ssl = _SSL(SSL_new(self._ctx.value))
         SSL_set_connect_state(self._ssl.value)
+        if peer_address:
+            return lambda: self.connect(peer_address)
 
     def _config_ssl_ctx(self, verify_mode):
         SSL_CTX_set_verify(self._ctx.value, verify_mode)
@@ -153,7 +167,10 @@ class SSLConnection(object):
         if self._ca_certs:
             SSL_CTX_load_verify_locations(self._ctx.value, self._ca_certs, None)
         if self._ciphers:
-            SSL_CTX_set_cipher_list(self._ctx.value, self._ciphers)
+            try:
+                SSL_CTX_set_cipher_list(self._ctx.value, self._ciphers)
+            except openssl_error() as err:
+                raise_ssl_error(ERR_NO_CIPHER, err)
 
     def _copy_server(self):
         source = self._sock
@@ -171,6 +188,7 @@ class SSLConnection(object):
         new_source_rbio = _BIO(BIO_new_dgram(source._rsock.fileno(),
                                              BIO_NOCLOSE))
         source._ssl = _SSL(SSL_new(self._ctx.value))
+        SSL_set_accept_state(source._ssl.value)
         source._rbio = new_source_rbio
         source._wbio = new_source_wbio
         SSL_set_bio(source._ssl.value,
@@ -178,6 +196,20 @@ class SSLConnection(object):
                     new_source_wbio.value)
         new_source_rbio.disown()
         new_source_wbio.disown()
+
+    def _reconnect_unwrapped(self):
+        source = self._sock
+        self._sock = source._wsock
+        self._udp_demux = source._demux
+        self._rsock = source._rsock
+        self._ctx = source._ctx
+        self._wbio = _BIO(BIO_new_dgram(self._sock.fileno(), BIO_NOCLOSE))
+        self._rbio = _BIO(BIO_new_dgram(self._rsock.fileno(), BIO_NOCLOSE))
+        BIO_dgram_set_peer(self._wbio.value, source._peer_address)
+        self._ssl = _SSL(SSL_new(self._ctx.value))
+        SSL_set_accept_state(self._ssl.value)
+        if self._do_handshake_on_connect:
+            return lambda: self.do_handshake()
 
     def _check_nbio(self):
         BIO_set_nbio(self._wbio.value, self._sock.gettimeout() is not None)
@@ -234,15 +266,24 @@ class SSLConnection(object):
         self._handshake_done = False
 
         if isinstance(sock, SSLConnection):
-            self._copy_server()
-        elif server_side:
-            self._init_server()
+            post_init = self._copy_server()
+        elif isinstance(sock, _UnwrappedSocket):
+            post_init = self._reconnect_unwrapped()
         else:
-            self._init_client()
+            try:
+                peer_address = sock.getpeername()
+            except socket.error:
+                peer_address = None
+            if server_side:
+                post_init = self._init_server(peer_address)
+            else:
+                post_init = self._init_client(peer_address)
 
         SSL_set_bio(self._ssl.value, self._rbio.value, self._wbio.value)
         self._rbio.disown()
         self._wbio.disown()
+        if post_init:
+            post_init()
 
     def get_socket(self, inbound):
         """Retrieve a socket used by this connection
@@ -305,7 +346,7 @@ class SSLConnection(object):
             _logger.debug("Invoking DTLSv1_listen for ssl: %d",
                           self._ssl.value._as_parameter)
             dtls_peer_address = DTLSv1_listen(self._ssl.value)
-        except OpenSSLError as err:
+        except openssl_error() as err:
             if err.ssl_error == SSL_ERROR_WANT_READ:
                 # This method must be called again to forward the next datagram
                 _logger.debug("DTLSv1_listen must be resumed")
@@ -345,6 +386,7 @@ class SSLConnection(object):
                                  self._cert_reqs, PROTOCOL_DTLSv1,
                                  self._ca_certs, self._do_handshake_on_connect,
                                  self._suppress_ragged_eofs, self._ciphers)
+        new_peer = self._pending_peer_address
         self._pending_peer_address = None
         if self._do_handshake_on_connect:
             # Note that since that connection's socket was just created in its
@@ -354,7 +396,7 @@ class SSLConnection(object):
             # will hang in this call
             new_conn.do_handshake()
         _logger.debug("Accept returning new connection for new peer")
-        return new_conn
+        return new_conn, new_peer
 
     def connect(self, peer_address):
         """Client-side UDP connection establishment
@@ -368,6 +410,7 @@ class SSLConnection(object):
         """
 
         self._sock.connect(peer_address)
+        peer_address = self._sock.getpeername()  # substituted host addrinfo
         BIO_dgram_set_connected(self._wbio.value, peer_address)
         assert self._wbio is self._rbio
         if self._do_handshake_on_connect:
@@ -382,7 +425,15 @@ class SSLConnection(object):
 
         _logger.debug("Initiating handshake...")
         self._check_nbio()
-        SSL_do_handshake(self._ssl.value)
+        try:
+            SSL_do_handshake(self._ssl.value)
+        except openssl_error() as err:
+            if err.ssl_error == SSL_ERROR_WANT_READ and \
+              self.get_socket(True).gettimeout():
+                raise_ssl_error(ERR_HANDSHAKE_TIMEOUT, err)
+            elif err.ssl_error == SSL_ERROR_SYSCALL and err.result == -1:
+                raise_ssl_error(ERR_PORT_UNREACHABLE, err)
+            raise
         self._handshake_done = True
         _logger.debug("...completed handshake")
 
@@ -423,19 +474,30 @@ class SSLConnection(object):
         it no longer raises continuation request exceptions.
         """
 
+        if hasattr(self, "_listening"):
+            # Listening server-side sockets cannot be shut down
+            return
+
         self._check_nbio()
         try:
             SSL_shutdown(self._ssl.value)
-        except OpenSSLError as err:
+        except openssl_error() as err:
             if err.result == 0:
                 # close-notify alert was just sent; wait for same from peer
                 # Note: while it might seem wise to suppress further read-aheads
                 # with SSL_set_read_ahead here, doing so causes a shutdown
                 # failure (ret: -1, SSL_ERROR_SYSCALL) on the DTLS shutdown
-                # initiator side.
+                # initiator side. And test_starttls does pass.
                 SSL_shutdown(self._ssl.value)
             else:
                 raise
+        if hasattr(self, "_udp_demux"):
+            # Return wrapped connected server socket (non-listening)
+            return _UnwrappedSocket(self._sock, self._rsock, self._udp_demux,
+                                    self._ctx,
+                                    BIO_dgram_get_peer(self._wbio.value))
+        # Return unwrapped client-side socket
+        return self._sock
 
     def getpeercert(self, binary_form=False):
         """Retrieve the peer's certificate
@@ -453,7 +515,7 @@ class SSLConnection(object):
 
         try:
             peer_cert = _X509(SSL_get_peer_certificate(self._ssl.value))
-        except OpenSSLError:
+        except openssl_error():
             return
 
         if binary_form:
@@ -461,6 +523,8 @@ class SSLConnection(object):
         if self._cert_reqs == CERT_NONE:
             return {}
         return decode_cert(peer_cert)
+
+    peer_certificate = getpeercert  # compatibility with _ssl call interface
 
     def cipher(self):
         """Retrieve information about the current cipher
@@ -478,3 +542,95 @@ class SSLConnection(object):
         cipher_version = SSL_CIPHER_get_version(current_cipher)
         cipher_bits = SSL_CIPHER_get_bits(current_cipher)
         return cipher_name, cipher_version, cipher_bits
+
+    def pending(self):
+        """Retrieve number of buffered bytes
+
+        Return the number of bytes that have been read from the socket and
+        buffered by this connection. Return 0 if no bytes have been buffered.
+        """
+
+        return SSL_pending(self._ssl.value)
+
+    def get_timeout(self):
+        """Retrieve the retransmission timedelta
+
+        Since datagrams are subject to packet loss, DTLS will perform
+        packet retransmission if a response is not received after a certain
+        time interval during the handshaking phase. When using non-blocking
+        sockets, the application must call back after that time interval to
+        allow for the retransmission to occur. This method returns the
+        timedelta after which to perform the call to handle_timeout, or None
+        if no such callback is needed given the current handshake state.
+        """
+
+        return DTLSv1_get_timeout(self._ssl.value)
+
+    def handle_timeout(self):
+        """Perform datagram retransmission, if required
+
+        This method should be called after the timedelta retrieved from
+        get_timeout has expired, and no datagrams were received in the
+        meantime. If datagrams were received, a new timeout needs to be
+        requested.
+
+        Return value:
+        True -- retransmissions were performed successfully
+        False -- a timeout was not in effect or had not yet expired
+
+        Exceptions:
+        Raised when retransmissions fail or too many timeouts occur.
+        """
+
+        return DTLSv1_handle_timeout(self._ssl.value)
+
+
+class _UnwrappedSocket(socket.socket):
+    """Unwrapped server-side socket
+
+    Depending on UDP demux implementation, there may not be single socket
+    that can be used for both reading and writing to the client socket with
+    which it is associated. An object of this type is therefore returned from
+    the SSLSocket's unwrap method to allow for unencrypted communication over
+    the established channels, including the demux.
+    """
+
+    def __init__(self, wsock, rsock, demux, ctx, peer_address):
+        socket.socket.__init__(self, _sock=rsock._sock)
+        for attr in "send", "sendto", "sendall":
+            try:
+                delattr(self, attr)
+            except AttributeError:
+                pass
+        self._wsock = wsock
+        self._rsock = rsock  # continue to reference to hold in demux map
+        self._demux = demux
+        self._ctx = ctx
+        self._peer_address = peer_address
+
+    def send(self, data, flags=0):
+        __doc__ = self._wsock.send.__doc__
+        return self._wsock.sendto(data, flags, self._peer_address)
+
+    def sendto(self, data, flags_or_addr, addr=None):
+        __doc__ = self._wsock.sendto.__doc__
+        return self._wsock.sendto(data, flags_or_addr, addr)
+
+    def sendall(self, data, flags=0):
+        __doc__ = self._wsock.sendall.__doc__
+        amount = len(data)
+        count = 0
+        while (count < amount):
+            v = self.send(data[count:], flags)
+            count += v
+        return amount
+
+    def getpeername(self):
+        __doc__ = self._wsock.getpeername.__doc__
+        return self._peer_address
+
+    def connect(self, addr):
+        __doc__ = self._wsock.connect.__doc__
+        raise ValueError("Cannot connect already connected unwrapped socket")
+
+    connect_ex = connect

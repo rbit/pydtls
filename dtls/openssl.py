@@ -20,7 +20,8 @@ import array
 import socket
 from logging import getLogger
 from os import path
-from err import OpenSSLError
+from datetime import timedelta
+from err import openssl_error
 from err import SSL_ERROR_NONE
 from util import _BIO
 import ctypes
@@ -64,6 +65,7 @@ else:
 #
 BIO_NOCLOSE = 0x00
 BIO_CLOSE = 0x01
+SSLEAY_VERSION = 0
 SSL_VERIFY_NONE = 0x00
 SSL_VERIFY_PEER = 0x01
 SSL_VERIFY_FAIL_IF_NO_PEER_CERT = 0x02
@@ -91,6 +93,8 @@ BIO_CTRL_DGRAM_SET_CONNECTED = 32
 BIO_CTRL_DGRAM_GET_PEER = 46
 BIO_CTRL_DGRAM_SET_PEER = 44
 BIO_C_SET_NBIO = 102
+DTLS_CTRL_GET_TIMEOUT = 73
+DTLS_CTRL_HANDLE_TIMEOUT = 74
 DTLS_CTRL_LISTEN = 75
 X509_NAME_MAXLEN = 256
 GETS_MAXLEN = 2048
@@ -248,6 +252,11 @@ class X509V3_EXT_METHOD(Structure):
                 ("i2d", c_int)]  # remaining fields omitted
 
 
+class TIMEVAL(Structure):
+    _fields_ = [("tv_sec", c_long),
+                ("tv_usec", c_long)]
+
+
 #
 # Socket address conversions
 #
@@ -366,7 +375,7 @@ def raise_ssl_error(result, func, args, ssl):
     _logger.debug("SSL error raised: ssl_error: %d, result: %d, " +
                   "errqueue: %s, func_name: %s",
                   ssl_error, result, errqueue, func.func_name)
-    raise OpenSSLError(ssl_error, errqueue, result, func, args)
+    raise openssl_error()(ssl_error, errqueue, result, func, args)
 
 def find_ssl_arg(args):
     for arg in args:
@@ -424,6 +433,7 @@ def _make_function(name, lib, args, export=True, errcheck="default"):
 _subst = {c_long_parm: c_long}
 _sigs = {}
 __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
+           "SSLEAY_VERSION",
            "SSL_VERIFY_NONE", "SSL_VERIFY_PEER",
            "SSL_VERIFY_FAIL_IF_NO_PEER_CERT", "SSL_VERIFY_CLIENT_ONCE",
            "SSL_SESS_CACHE_OFF", "SSL_SESS_CACHE_CLIENT",
@@ -432,6 +442,7 @@ __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
            "SSL_SESS_CACHE_NO_INTERNAL_STORE", "SSL_SESS_CACHE_NO_INTERNAL",
            "SSL_FILE_TYPE_PEM",
            "GEN_DIRNAME", "NID_subject_alt_name",
+           "DTLSv1_get_timeout", "DTLSv1_handle_timeout",
            "DTLSv1_listen",
            "BIO_gets", "BIO_read", "BIO_get_mem_data",
            "BIO_dgram_set_connected",
@@ -450,6 +461,8 @@ __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
 map(lambda x: _make_function(*x), (
     ("SSL_library_init", libssl, ((c_int, "ret"),)),
     ("SSL_load_error_strings", libssl, ((None, "ret"),)),
+    ("SSLeay", libcrypto, ((c_long_parm, "ret"),)),
+    ("SSLeay_version", libcrypto, ((c_char_p, "ret"), (c_int, "t"))),
     ("DTLSv1_server_method", libssl, ((DTLSv1Method, "ret"),)),
     ("DTLSv1_client_method", libssl, ((DTLSv1Method, "ret"),)),
     ("SSL_CTX_new", libssl, ((SSLCTX, "ret"), (DTLSv1Method, "meth"))),
@@ -514,6 +527,7 @@ map(lambda x: _make_function(*x), (
      ((c_int, "ret"), (SSL, "ssl"), (c_void_p, "buf"), (c_int, "num")), False),
     ("SSL_write", libssl,
      ((c_int, "ret"), (SSL, "ssl"), (c_void_p, "buf"), (c_int, "num")), False),
+    ("SSL_pending", libssl, ((c_int, "ret"), (SSL, "ssl")), True, None),
     ("SSL_shutdown", libssl, ((c_int, "ret"), (SSL, "ssl"))),
     ("SSL_set_read_ahead", libssl,
      ((None, "ret"), (SSL, "ssl"), (c_int, "yes"))),
@@ -630,6 +644,28 @@ def BIO_dgram_set_peer(bio, peer_address):
 def BIO_set_nbio(bio, n):
     _BIO_ctrl(bio, BIO_C_SET_NBIO, 1 if n else 0, None)
 
+def DTLSv1_get_timeout(ssl):
+    tv = TIMEVAL()
+    ret = _SSL_ctrl(ssl, DTLS_CTRL_GET_TIMEOUT, 0, byref(tv))
+    if ret != 1:
+        return
+    return timedelta(seconds=tv.tv_sec, microseconds=tv.tv_usec)
+
+def DTLSv1_handle_timeout(ssl):
+    ret = _SSL_ctrl(ssl, DTLS_CTRL_HANDLE_TIMEOUT, 0, None)
+    if ret == 0:
+        # It was too early to call: no timer had yet expired
+        return False
+    if ret == 1:
+        # Buffered messages were retransmitted
+        return True
+    # There was an error: either too many timeouts have occurred or a
+    # retransmission failed
+    assert ret < 0
+    if ret > 0:
+        ret = -10
+    errcheck_p(ret, _SSL_ctrl, (ssl, DTLS_CTRL_HANDLE_TIMEOUT, 0, None))
+
 def DTLSv1_listen(ssl):
     su = sockaddr_u()
     ret = _SSL_ctrl(ssl, DTLS_CTRL_LISTEN, 0, byref(su))
@@ -642,7 +678,10 @@ def SSL_read(ssl, length):
     return buf.raw[:res_len]
 
 def SSL_write(ssl, data):
-    str_data = str(data)
+    if hasattr(data, "tobytes") and callable(data.tobytes):
+        str_data = data.tobytes()
+    else:
+        str_data = str(data)
     return _SSL_write(ssl, str_data, len(str_data))
 
 def OBJ_obj2txt(asn1_object, no_name):

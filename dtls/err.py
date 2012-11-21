@@ -25,7 +25,9 @@ SSL_ERROR_WANT_ACCEPT = 8
 ERR_BOTH_KEY_CERT_FILES = 500
 ERR_BOTH_KEY_CERT_FILES_SVR = 298
 ERR_NO_CERTS = 331
-
+ERR_NO_CIPHER = 501
+ERR_HANDSHAKE_TIMEOUT = 502
+ERR_PORT_UNREACHABLE = 503
 ERR_COOKIE_MISMATCH = 0x1408A134
 
 
@@ -35,27 +37,48 @@ class SSLError(socket_error):
         super(SSLError, self).__init__(*args)
 
 
-class OpenSSLError(SSLError):
-    """This exception is raised when an error occurs in the OpenSSL library"""
-    def __init__(self, ssl_error, errqueue, result, func, args):
-        self.ssl_error = ssl_error
-        self.errqueue = errqueue
-        self.result = result
-        self.func = func
-        self.args = args
-        super(OpenSSLError, self).__init__(ssl_error, errqueue,
-                                           result, func, args)
-
-
 class InvalidSocketError(Exception):
     """There is a problem with a socket passed to the dtls package."""
     def __init__(self, *args):
         super(InvalidSocketError, self).__init__(*args)
 
 
-def raise_ssl_error(code):
+def _make_opensslerror_class():
+    global _OpenSSLError
+    class __OpenSSLError(SSLError):
+        """
+        This exception is raised when an error occurs in the OpenSSL library
+        """
+        def __init__(self, ssl_error, errqueue, result, func, args):
+            self.ssl_error = ssl_error
+            self.errqueue = errqueue
+            self.result = result
+            self.func = func
+            self.args = args
+            SSLError.__init__(self, ssl_error, errqueue,
+                              result, func, args)
+
+    _OpenSSLError = __OpenSSLError
+
+_make_opensslerror_class()
+
+def openssl_error():
+    """Return the OpenSSL error type for use in exception clauses"""
+    return _OpenSSLError
+
+def raise_as_ssl_module_error():
+    """Exceptions raised from this module are instances of ssl.SSLError"""
+    import ssl
+    global SSLError
+    SSLError = ssl.SSLError
+    _make_opensslerror_class()
+
+def raise_ssl_error(code, nested=None):
     """Raise an SSL error with the given error code"""
-    raise SSLError(str(code) + ": " + _ssl_errors[code])
+    err_string = str(code) + ": " + _ssl_errors[code]
+    if nested:
+        raise SSLError(err_string, nested)
+    raise SSLError(err_string)
 
 _ssl_errors = {
     ERR_NO_CERTS: "No root certificates specified for verification " + \
@@ -63,5 +86,8 @@ _ssl_errors = {
     ERR_BOTH_KEY_CERT_FILES: "Both the key & certificate files " + \
                              "must be specified",
     ERR_BOTH_KEY_CERT_FILES_SVR: "Both the key & certificate files must be " + \
-                                 "specified for server-side operation"
+                                 "specified for server-side operation",
+    ERR_NO_CIPHER: "No cipher can be selected.",
+    ERR_HANDSHAKE_TIMEOUT: "The handshake operation timed out",
+    ERR_PORT_UNREACHABLE: "The peer address is not reachable",
     }

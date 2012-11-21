@@ -45,7 +45,7 @@ def main():
             break
 
     print "Accepting..."
-    conn = scn.accept()
+    conn = scn.accept()[0]
     sck.settimeout(5)
     conn.get_socket(True).settimeout(5)
 
@@ -59,7 +59,7 @@ def main():
         try:
             conn.do_handshake()
         except SSLError as err:
-            if err.args[0] == SSL_ERROR_WANT_READ:
+            if len(err.args) > 1 and err.args[1].args[0] == SSL_ERROR_WANT_READ:
                 continue
             raise
         print "Completed handshaking with peer"
