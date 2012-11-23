@@ -35,6 +35,7 @@ from err import SSL_ERROR_WANT_READ, SSL_ERROR_SYSCALL
 from err import ERR_COOKIE_MISMATCH, ERR_NO_CERTS
 from err import ERR_NO_CIPHER, ERR_HANDSHAKE_TIMEOUT, ERR_PORT_UNREACHABLE
 from x509 import _X509, decode_cert
+from tlock import tlock_init
 from openssl import *
 from util import _Rsrc, _BIO
 
@@ -50,6 +51,7 @@ CERT_REQUIRED = 2
 #
 SSL_library_init()
 SSL_load_error_strings()
+tlock_init()
 DTLS_OPENSSL_VERSION_NUMBER = SSLeay()
 DTLS_OPENSSL_VERSION = SSLeay_version(SSLEAY_VERSION)
 DTLS_OPENSSL_VERSION_INFO = (
