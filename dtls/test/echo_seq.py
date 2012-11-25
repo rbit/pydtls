@@ -59,7 +59,7 @@ def main():
         try:
             conn.do_handshake()
         except SSLError as err:
-            if len(err.args) > 1 and err.args[1].args[0] == SSL_ERROR_WANT_READ:
+            if str(err).startswith("504:"):
                 continue
             raise
         print "Completed handshaking with peer"
@@ -75,7 +75,7 @@ def main():
         try:
             message = conn.read()
         except SSLError as err:
-            if err.args[0] == SSL_ERROR_WANT_READ:
+            if str(err).startswith("502:"):
                 continue
             if err.args[0] == SSL_ERROR_ZERO_RETURN:
                 break
@@ -91,9 +91,10 @@ def main():
         assert not peer_address
         print "Shutdown invocation: %d" % cnt
         try:
-            conn.shutdown()
+            s = conn.shutdown()
+            s.shutdown(socket.SHUT_RDWR)
         except SSLError as err:
-            if err.args[0] == SSL_ERROR_WANT_READ:
+            if str(err).startswith("502:"):
                 continue
             raise
         break

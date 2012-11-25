@@ -26,8 +26,10 @@ ERR_BOTH_KEY_CERT_FILES = 500
 ERR_BOTH_KEY_CERT_FILES_SVR = 298
 ERR_NO_CERTS = 331
 ERR_NO_CIPHER = 501
-ERR_HANDSHAKE_TIMEOUT = 502
-ERR_PORT_UNREACHABLE = 503
+ERR_READ_TIMEOUT = 502
+ERR_WRITE_TIMEOUT = 503
+ERR_HANDSHAKE_TIMEOUT = 504
+ERR_PORT_UNREACHABLE = 505
 ERR_COOKIE_MISMATCH = 0x1408A134
 
 
@@ -88,6 +90,8 @@ _ssl_errors = {
     ERR_BOTH_KEY_CERT_FILES_SVR: "Both the key & certificate files must be " + \
                                  "specified for server-side operation",
     ERR_NO_CIPHER: "No cipher can be selected.",
+    ERR_READ_TIMEOUT: "The read operation timed out",
+    ERR_WRITE_TIMEOUT: "The write operation timed out",
     ERR_HANDSHAKE_TIMEOUT: "The handshake operation timed out",
     ERR_PORT_UNREACHABLE: "The peer address is not reachable",
     }

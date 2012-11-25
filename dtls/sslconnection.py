@@ -26,14 +26,17 @@ library's ssl module, since its values can be passed to this module.
 import errno
 import socket
 import hmac
+import datetime
 from logging import getLogger
 from os import urandom
+from select import select
 from weakref import proxy
 from err import openssl_error, InvalidSocketError
 from err import raise_ssl_error
 from err import SSL_ERROR_WANT_READ, SSL_ERROR_SYSCALL
 from err import ERR_COOKIE_MISMATCH, ERR_NO_CERTS
 from err import ERR_NO_CIPHER, ERR_HANDSHAKE_TIMEOUT, ERR_PORT_UNREACHABLE
+from err import ERR_READ_TIMEOUT, ERR_WRITE_TIMEOUT
 from x509 import _X509, decode_cert
 from tlock import tlock_init
 from openssl import *
@@ -214,9 +217,35 @@ class SSLConnection(object):
             return lambda: self.do_handshake()
 
     def _check_nbio(self):
-        BIO_set_nbio(self._wbio.value, self._sock.gettimeout() is not None)
+        timeout = self._sock.gettimeout()
+        BIO_set_nbio(self._wbio.value, timeout is not None)
         if self._wbio is not self._rbio:
-            BIO_set_nbio(self._rbio.value, self._rsock.gettimeout() is not None)
+            timeout = self._rsock.gettimeout()
+            BIO_set_nbio(self._rbio.value, timeout is not None)
+        return timeout  # read channel timeout
+
+    def _wrap_socket_library_call(self, call, timeout_error):
+        timeout_sec_start = timeout_sec = self._check_nbio()
+        # Pass the call if the socket is blocking or non-blocking
+        if not timeout_sec:  # None (blocking) or zero (non-blocking)
+            return call()
+        start_time = datetime.datetime.now()
+        read_sock = self.get_socket(True)
+        need_select = False
+        while timeout_sec > 0:
+            if need_select:
+                if not select([read_sock], [], [], timeout_sec)[0]:
+                    break
+                timeout_sec = timeout_sec_start - \
+                  (datetime.datetime.now() - start_time).total_seconds()
+            try:
+                return call()
+            except openssl_error() as err:
+                if err.ssl_error == SSL_ERROR_WANT_READ:
+                    need_select = True
+                    continue
+                raise
+        raise_ssl_error(timeout_error)
 
     def _get_cookie(self, ssl):
         assert self._listening
@@ -426,14 +455,12 @@ class SSLConnection(object):
         """
 
         _logger.debug("Initiating handshake...")
-        self._check_nbio()
         try:
-            SSL_do_handshake(self._ssl.value)
+            self._wrap_socket_library_call(
+                lambda: SSL_do_handshake(self._ssl.value),
+                ERR_HANDSHAKE_TIMEOUT)
         except openssl_error() as err:
-            if err.ssl_error == SSL_ERROR_WANT_READ and \
-              self.get_socket(True).gettimeout():
-                raise_ssl_error(ERR_HANDSHAKE_TIMEOUT, err)
-            elif err.ssl_error == SSL_ERROR_SYSCALL and err.result == -1:
+            if err.ssl_error == SSL_ERROR_SYSCALL and err.result == -1:
                 raise_ssl_error(ERR_PORT_UNREACHABLE, err)
             raise
         self._handshake_done = True
@@ -450,8 +477,8 @@ class SSLConnection(object):
         string containing read bytes
         """
 
-        self._check_nbio()
-        return SSL_read(self._ssl.value, len)
+        return self._wrap_socket_library_call(
+            lambda: SSL_read(self._ssl.value, len), ERR_READ_TIMEOUT)
 
     def write(self, data):
         """Write data to connection
@@ -465,8 +492,8 @@ class SSLConnection(object):
         number of bytes actually transmitted
         """
 
-        self._check_nbio()
-        return SSL_write(self._ssl.value, data)
+        return self._wrap_socket_library_call(
+            lambda: SSL_write(self._ssl.value, data), ERR_WRITE_TIMEOUT)
 
     def shutdown(self):
         """Shut down the DTLS connection
@@ -480,9 +507,9 @@ class SSLConnection(object):
             # Listening server-side sockets cannot be shut down
             return
 
-        self._check_nbio()
         try:
-            SSL_shutdown(self._ssl.value)
+            self._wrap_socket_library_call(
+                lambda: SSL_shutdown(self._ssl.value), ERR_READ_TIMEOUT)
         except openssl_error() as err:
             if err.result == 0:
                 # close-notify alert was just sent; wait for same from peer
@@ -490,7 +517,8 @@ class SSLConnection(object):
                 # with SSL_set_read_ahead here, doing so causes a shutdown
                 # failure (ret: -1, SSL_ERROR_SYSCALL) on the DTLS shutdown
                 # initiator side. And test_starttls does pass.
-                SSL_shutdown(self._ssl.value)
+                self._wrap_socket_library_call(
+                    lambda: SSL_shutdown(self._ssl.value), ERR_READ_TIMEOUT)
             else:
                 raise
         if hasattr(self, "_udp_demux"):
