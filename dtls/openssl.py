@@ -616,9 +616,9 @@ def SSL_CTX_set_read_ahead(ctx, m):
     # Returns the previous value of m
     _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_READ_AHEAD, m, None)
 
-_rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte),
+_rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_int, POINTER(c_ubyte),
                                      POINTER(c_uint))
-_rint_voidp_ubytep_uint = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte), c_uint)
+_rint_voidp_ubytep_uint = CFUNCTYPE(c_int, c_int, POINTER(c_ubyte), c_uint)
 
 def SSL_CTX_set_cookie_cb(ctx, generate, verify):
     def py_generate_cookie_cb(ssl, cookie, cookie_len):

@@ -154,10 +154,14 @@ class BasicSocketTests(unittest.TestCase):
         # something unexpected like TypeError.
         s = socket.socket(AF_INET4_6, socket.SOCK_DGRAM)
         ss = ssl.wrap_socket(s)
-        self.assertRaises(socket.error, ss.recv, 1)
-        self.assertRaises(socket.error, ss.recv_into, bytearray(b'x'))
-        self.assertRaises(socket.error, ss.recvfrom, 1)
-        self.assertRaises(socket.error, ss.recvfrom_into, bytearray(b'x'), 1)
+        if os.name != "posix":
+            # On Linux, unconnected, unbound datagram sockets can receive and
+            # the following calls will therefore block
+            self.assertRaises(socket.error, ss.recv, 1)
+            self.assertRaises(socket.error, ss.recv_into, bytearray(b'x'))
+            self.assertRaises(socket.error, ss.recvfrom, 1)
+            self.assertRaises(socket.error, ss.recvfrom_into, bytearray(b'x'),
+                              1)
         self.assertRaises(socket.error, ss.send, b'x')
         self.assertRaises(socket.error, ss.sendto, b'x',
                           ('0.0.0.0', 0) if AF_INET4_6 == socket.AF_INET else

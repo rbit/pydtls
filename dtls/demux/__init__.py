@@ -21,6 +21,7 @@ import sys
 if sys.platform.startswith('win') or sys.platform.startswith('cygwin'):
     from router import UDPDemux
 else:
-    from osnet import UDPDemux
+    #from osnet import UDPDemux
+    from router import UDPDemux
 
 __all__ = ["UDPDemux"]
