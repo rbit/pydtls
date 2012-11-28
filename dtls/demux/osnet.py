@@ -17,8 +17,15 @@ Classes:
 
 Exceptions:
 
+  InvalidSocketError -- exception raised for improper socket objects
   KeyError -- raised for unknown peer addresses
 """
+
+import socket
+from logging import getLogger
+from ..err import InvalidSocketError
+
+_logger = getLogger(__name__)
 
 
 class UDPDemux(object):
@@ -31,9 +38,33 @@ class UDPDemux(object):
     Methods:
 
       get_connection -- create a new connection or retrieve an existing one
-      remove_connection -- remove an existing connection
       service -- this method does nothing for this type of demux
     """
+
+    def __init__(self, datagram_socket):
+        """Constructor
+
+        Arguments:
+        datagram_socket -- the root socket; this must be a bound, unconnected
+                           datagram socket
+        """
+
+        if datagram_socket.type != socket.SOCK_DGRAM:
+            raise InvalidSocketError("datagram_socket is not of " +
+                                     "type SOCK_DGRAM")
+        try:
+            datagram_socket.getsockname()
+        except:
+            raise InvalidSocketError("datagram_socket is unbound")
+        try:
+            datagram_socket.getpeername()
+        except:
+            pass
+        else:
+            raise InvalidSocketError("datagram_socket is connected")
+
+        datagram_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._datagram_socket = datagram_socket
 
     def get_connection(self, address):
         """Create or retrieve a muxed connection
@@ -47,16 +78,27 @@ class UDPDemux(object):
         in case address was None
         """
 
-    def remove_connection(self, address):
-        """Remove a muxed connection
+        if not address:
+            return self._datagram_socket
 
-        Arguments:
-        address -- an address for which a muxed connection was previously
-                   retrieved through get_connection, which has not yet
-                   been removed
+        # Create a new datagram socket bound to the same interface and port as
+        # the root socket, but connected to the given peer
+        conn = socket.socket(self._datagram_socket.family,
+                             self._datagram_socket.type,
+                             self._datagram_socket.proto)
+        conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        conn.bind(self._datagram_socket.getsockname())
+        conn.connect(address)
+        _logger.debug("Created new connection for address: %s", address)
+        return conn
 
-        Return:
-        the socket object whose connection has been removed
+    @staticmethod
+    def service():
+        """Service the root socket
+
+        This type of demux performs no servicing work on the root socket,
+        and instead advises the caller to proceed to listening on the root
+        socket.
         """
 
-        return self.connections.pop(address)
+        return True

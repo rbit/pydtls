@@ -116,14 +116,21 @@ class SSLConnection(object):
     def _init_server(self, peer_address):
         if self._sock.type != socket.SOCK_DGRAM:
             raise InvalidSocketError("sock must be of type SOCK_DGRAM")
-        if peer_address:
-            raise InvalidSocketError("server-side socket must be unconnected")
 
-        from demux import UDPDemux
-        self._udp_demux = UDPDemux(self._sock)
-        self._rsock = self._udp_demux.get_connection(None)
         self._wbio = _BIO(BIO_new_dgram(self._sock.fileno(), BIO_NOCLOSE))
-        self._rbio = _BIO(BIO_new_dgram(self._rsock.fileno(), BIO_NOCLOSE))
+        if peer_address:
+            # Connect directly to this client peer, bypassing the demux
+            rsock = self._sock
+            BIO_dgram_set_connected(self._wbio.value, peer_address)
+        else:
+            from demux import UDPDemux
+            self._udp_demux = UDPDemux(self._sock)
+            rsock = self._udp_demux.get_connection(None)
+        if rsock is self._sock:
+            self._rbio = self._wbio
+        else:
+            self._rsock = rsock
+            self._rbio = _BIO(BIO_new_dgram(self._rsock.fileno(), BIO_NOCLOSE))
         self._ctx = _CTX(SSL_CTX_new(DTLSv1_server_method()))
         SSL_CTX_set_session_cache_mode(self._ctx.value, SSL_SESS_CACHE_OFF)
         if self._cert_reqs == CERT_NONE:
@@ -133,16 +140,20 @@ class SSLConnection(object):
         else:
             verify_mode = SSL_VERIFY_PEER | SSL_VERIFY_CLIENT_ONCE | \
               SSL_VERIFY_FAIL_IF_NO_PEER_CERT
-        self._listening = False
-        self._listening_peer_address = None
-        self._pending_peer_address = None
         self._config_ssl_ctx(verify_mode)
-        self._cb_keepalive = SSL_CTX_set_cookie_cb(
-            self._ctx.value,
-            _CallbackProxy(self._generate_cookie_cb),
-            _CallbackProxy(self._verify_cookie_cb))
+        if not peer_address:
+            # Configure UDP listening socket
+            self._listening = False
+            self._listening_peer_address = None
+            self._pending_peer_address = None
+            self._cb_keepalive = SSL_CTX_set_cookie_cb(
+                self._ctx.value,
+                _CallbackProxy(self._generate_cookie_cb),
+                _CallbackProxy(self._verify_cookie_cb))
         self._ssl = _SSL(SSL_new(self._ctx.value))
         SSL_set_accept_state(self._ssl.value)
+        if peer_address and self._do_handshake_on_connect:
+            return lambda: self.do_handshake()
 
     def _init_client(self, peer_address):
         if self._sock.type != socket.SOCK_DGRAM:
@@ -179,19 +190,27 @@ class SSLConnection(object):
 
     def _copy_server(self):
         source = self._sock
-        self._sock = source._sock
         self._udp_demux = source._udp_demux
-        self._rsock = self._udp_demux.get_connection(
-            source._pending_peer_address)
-        self._wbio = _BIO(BIO_new_dgram(self._sock.fileno(), BIO_NOCLOSE))
-        self._rbio = _BIO(BIO_new_dgram(self._rsock.fileno(), BIO_NOCLOSE))
-        BIO_dgram_set_peer(self._wbio.value, source._pending_peer_address)
+        rsock = self._udp_demux.get_connection(source._pending_peer_address)
         self._ctx = source._ctx
         self._ssl = source._ssl
         new_source_wbio = _BIO(BIO_new_dgram(source._sock.fileno(),
                                              BIO_NOCLOSE))
-        new_source_rbio = _BIO(BIO_new_dgram(source._rsock.fileno(),
-                                             BIO_NOCLOSE))
+        if hasattr(source, "_rsock"):
+            self._sock = source._sock
+            self._rsock = rsock
+            self._wbio = _BIO(BIO_new_dgram(self._sock.fileno(), BIO_NOCLOSE))
+            self._rbio = _BIO(BIO_new_dgram(rsock.fileno(), BIO_NOCLOSE))
+            new_source_rbio = _BIO(BIO_new_dgram(source._rsock.fileno(),
+                                                 BIO_NOCLOSE))
+            BIO_dgram_set_peer(self._wbio.value, source._pending_peer_address)
+        else:
+            self._sock = rsock
+            self._wbio = _BIO(BIO_new_dgram(self._sock.fileno(), BIO_NOCLOSE))
+            self._rbio = self._wbio
+            new_source_rbio = new_source_wbio
+            BIO_dgram_set_connected(self._wbio.value,
+                                    source._pending_peer_address)
         source._ssl = _SSL(SSL_new(self._ctx.value))
         SSL_set_accept_state(source._ssl.value)
         source._rbio = new_source_rbio
@@ -348,6 +367,9 @@ class SSLConnection(object):
         Return value: a peer address if a datagram from a new peer was
         encountered, None if a datagram for a known peer was forwarded
         """
+
+        if not hasattr(self, "_listening"):
+            raise InvalidSocketError("listen called on non-listening socket")
 
         self._pending_peer_address = None
         try:
@@ -521,12 +543,13 @@ class SSLConnection(object):
                     lambda: SSL_shutdown(self._ssl.value), ERR_READ_TIMEOUT)
             else:
                 raise
-        if hasattr(self, "_udp_demux"):
+        if hasattr(self, "_rsock"):
             # Return wrapped connected server socket (non-listening)
             return _UnwrappedSocket(self._sock, self._rsock, self._udp_demux,
                                     self._ctx,
                                     BIO_dgram_get_peer(self._wbio.value))
-        # Return unwrapped client-side socket
+        # Return unwrapped client-side socket or unwrapped server-side socket
+        # for single-socket servers
         return self._sock
 
     def getpeercert(self, binary_form=False):

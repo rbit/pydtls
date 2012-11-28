@@ -20,8 +20,28 @@ import sys
 
 if sys.platform.startswith('win') or sys.platform.startswith('cygwin'):
     from router import UDPDemux
+    _routing = True
 else:
-    #from osnet import UDPDemux
-    from router import UDPDemux
+    from osnet import UDPDemux
+    _routing = False
+_default_demux = None
 
-__all__ = ["UDPDemux"]
+def force_routing_demux():
+    global _routing
+    if _routing:
+        return False  # no change - already loaded
+    global UDPDemux, _default_demux
+    import router
+    _default_demux = UDPDemux
+    UDPDemux = router.UDPDemux
+    _routing = True
+    return True  # new router loaded and switched
+
+def reset_default_demux():
+    global UDPDemux, _routing, _default_demux
+    if _default_demux:
+        UDPDemux = _default_demux
+        _default_demux = None
+        _routing = not _routing
+
+__all__ = ["UDPDemux", "force_routing_demux", "reset_default_demux"]

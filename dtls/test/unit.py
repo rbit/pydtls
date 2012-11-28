@@ -22,7 +22,7 @@ from SimpleHTTPServer import SimpleHTTPRequestHandler
 from collections import OrderedDict
 
 import ssl
-from dtls import do_patch
+from dtls import do_patch, force_routing_demux, reset_default_demux
 
 HOST = "localhost"
 CONNECTION_TIMEOUT = datetime.timedelta(seconds=30)
@@ -1347,14 +1347,18 @@ def test_main(verbose=True):
             raise Exception("Can't read certificate files!")
 
     TestSupport.verbose = verbose
+    reset_default_demux()
     do_patch()
-    AF_INET4_6 = socket.AF_INET
-    res = unittest.main(exit=False).result.wasSuccessful()
-    if not res:
-        print "IPv4 test suite failed; not proceeding to IPv6"
-        sys.exit(not res)
-    AF_INET4_6 = socket.AF_INET6
-    unittest.main()
+    for demux in "platform-native", "routing":
+        for AF_INET4_6 in socket.AF_INET, socket.AF_INET6:
+            print "Suite run: demux: %s, protocol: %d" % (demux, AF_INET4_6)
+            res = unittest.main(exit=False).result.wasSuccessful()
+            if not res:
+                print "Suite run failed: demux: %s, protocol: %d" % (
+                    demux, AF_INET4_6)
+                sys.exit(True)
+        if not force_routing_demux():
+            break
 
 if __name__ == "__main__":
     verbose = True if len(sys.argv) > 1 and sys.argv[1] == "-v" else False
