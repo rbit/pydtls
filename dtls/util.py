@@ -19,6 +19,10 @@ class _Rsrc(object):
     def value(self):
         return self._value
 
+    @property
+    def raw(self):
+        return self._value.raw
+
 
 class _BIO(_Rsrc):
     """BIO wrapper"""
@@ -31,7 +35,7 @@ class _BIO(_Rsrc):
 
     def __del__(self):
         if self.owned:
-            _logger.debug("Freeing BIO: %d", self._value._as_parameter)
+            _logger.debug("Freeing BIO: %d", self.raw)
             from openssl import BIO_free
             BIO_free(self._value)
             self.owned = False

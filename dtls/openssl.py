@@ -122,10 +122,14 @@ class FuncParam(object):
         return value._as_parameter
 
     def __init__(self, value):
-        self._as_parameter = value
+        self._as_parameter = c_void_p(value)
 
     def __nonzero__(self):
         return bool(self._as_parameter)
+
+    @property
+    def raw(self):
+        return self._as_parameter.value
 
 
 class DTLSv1Method(FuncParam):
@@ -268,15 +272,15 @@ class sockaddr_storage(Structure):
 class sockaddr_in(Structure):
     _fields_ = [("sin_family", c_short),
                 ("sin_port", c_ushort),
-                ("sin_addr", c_ulong * 1),
+                ("sin_addr", c_uint * 1),
                 ("sin_zero", c_char * 8)]
 
 class sockaddr_in6(Structure):
     _fields_ = [("sin6_family", c_short),
                 ("sin6_port", c_ushort),
-                ("sin6_flowinfo", c_ulong),
-                ("sin6_addr", c_ulong * 4),
-                ("sin6_scope_id", c_ulong)]
+                ("sin6_flowinfo", c_uint),
+                ("sin6_addr", c_uint * 4),
+                ("sin6_scope_id", c_uint)]
 
 class sockaddr_u(Union):
     _fields_ = [("ss", sockaddr_storage),
@@ -302,27 +306,27 @@ if not py_inet_pton:
 def inet_ntop(address_family, packed_ip):
     if py_inet_ntop:
         return py_inet_ntop(address_family,
-                            array.array('L', packed_ip).tostring())
+                            array.array('I', packed_ip).tostring())
     if wsa_inet_ntop:
         string_buf = create_string_buffer(47)
         wsa_inet_ntop(address_family, packed_ip,
                       string_buf, sizeof(string_buf))
         if not string_buf.value:
             raise ValueError("wsa_inet_ntop failed with: %s" %
-                             array.array('L', packed_ip).tostring())
+                             array.array('I', packed_ip).tostring())
         return string_buf.value
     if address_family == socket.AF_INET6:
         raise ValueError("Platform does not support IPv6")
-    return socket.inet_ntoa(array.array('L', packed_ip).tostring())
+    return socket.inet_ntoa(array.array('I', packed_ip).tostring())
 
 def inet_pton(address_family, string_ip):
     if address_family == socket.AF_INET6:
-        ret_packed_ip = (c_ulong * 4)()
+        ret_packed_ip = (c_uint * 4)()
     else:
-        ret_packed_ip = (c_ulong * 1)()
+        ret_packed_ip = (c_uint * 1)()
     if py_inet_pton:
         ret_string = py_inet_pton(address_family, string_ip)
-        ret_packed_ip[:] = array.array('L', ret_string)
+        ret_packed_ip[:] = array.array('I', ret_string)
     elif wsa_inet_pton:
         if wsa_inet_pton(address_family, string_ip, ret_packed_ip) != 1:
             raise ValueError("wsa_inet_pton failed with: %s" % string_ip)
@@ -330,7 +334,7 @@ def inet_pton(address_family, string_ip):
         if address_family == socket.AF_INET6:
             raise ValueError("Platform does not support IPv6")
         ret_string = socket.inet_aton(string_ip)
-        ret_packed_ip[:] = array.array('L', ret_string)
+        ret_packed_ip[:] = array.array('I', ret_string)
     return ret_packed_ip
 
 def addr_tuple_from_sockaddr_u(su):
@@ -393,6 +397,11 @@ def errcheck_p(result, func, args):
         raise_ssl_error(result, func, args, None)
     return args
 
+def errcheck_FuncParam(result, func, args):
+    if not result:
+        raise_ssl_error(result, func, args, None)
+    return func.ret_type(result)
+
 #
 # Function prototypes
 #
@@ -405,6 +414,12 @@ def _make_function(name, lib, args, export=True, errcheck="default"):
         return map_type
 
     sig = tuple(type_subst(i[0]) for i in args)
+    # Handle pointer return values (width is architecture-dependent)
+    if isinstance(sig[0], type) and issubclass(sig[0], FuncParam):
+        sig = (c_void_p,) + sig[1:]
+        pointer_return = True
+    else:
+        pointer_return = False
     if not _sigs.has_key(sig):
         _sigs[sig] = CFUNCTYPE(*sig)
     if export:
@@ -418,13 +433,16 @@ def _make_function(name, lib, args, export=True, errcheck="default"):
                                          [:3 if len(i) > 3 else 2]
                                          for i in args[1:]))
     func.func_name = name
+    if pointer_return:
+        func.ret_type = args[0][0]  # for fix-up during error checking protocol
     if errcheck == "default":
         # Assign error checker based on return type
         if args[0][0] in (c_int,):
             errcheck = errcheck_ord
-        elif args[0][0] in (c_void_p, c_char_p) or \
-          isinstance(args[0][0], type) and issubclass(args[0][0], FuncParam):
+        elif args[0][0] in (c_void_p, c_char_p):
             errcheck = errcheck_p
+        elif pointer_return:
+            errcheck = errcheck_FuncParam
         else:
             errcheck = None
     if errcheck:
@@ -616,9 +634,9 @@ def SSL_CTX_set_read_ahead(ctx, m):
     # Returns the previous value of m
     _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_READ_AHEAD, m, None)
 
-_rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_int, POINTER(c_ubyte),
+_rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte),
                                      POINTER(c_uint))
-_rint_voidp_ubytep_uint = CFUNCTYPE(c_int, c_int, POINTER(c_ubyte), c_uint)
+_rint_voidp_ubytep_uint = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte), c_uint)
 
 def SSL_CTX_set_cookie_cb(ctx, generate, verify):
     def py_generate_cookie_cb(ssl, cookie, cookie_len):

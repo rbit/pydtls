@@ -1333,6 +1333,22 @@ class ThreadedTests(unittest.TestCase):
             server.close()
 
 
+def hostname_for_protocol(protocol):
+    global HOST
+    # We can't quite predict the content of the hosts file, but we prefer names
+    # to numbers in order to test name resolution; if we can't find a name,
+    # then fall back to a number for the given protocol
+    for name in HOST, "localhost", "ip6-localhost", "127.0.0.1", "::1":
+        try:
+            socket.getaddrinfo(name, 0, protocol)
+        except socket.error:
+            pass
+        else:
+            HOST = name
+            return
+    # Is the loopback interface enabled along with ipv6 for that interface?
+    raise Exception("Failed to select hostname for protocol %d" % protocol)
+
 def test_main(verbose=True):
     global CERTFILE, ISSUER_CERTFILE, OTHER_CERTFILE, AF_INET4_6
     CERTFILE = os.path.join(os.path.dirname(__file__) or os.curdir,
@@ -1352,6 +1368,7 @@ def test_main(verbose=True):
     for demux in "platform-native", "routing":
         for AF_INET4_6 in socket.AF_INET, socket.AF_INET6:
             print "Suite run: demux: %s, protocol: %d" % (demux, AF_INET4_6)
+            hostname_for_protocol(AF_INET4_6)
             res = unittest.main(exit=False).result.wasSuccessful()
             if not res:
                 print "Suite run failed: demux: %s, protocol: %d" % (

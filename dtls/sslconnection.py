@@ -71,7 +71,7 @@ class _CTX(_Rsrc):
         super(_CTX, self).__init__(value)
 
     def __del__(self):
-        _logger.debug("Freeing SSL CTX: %d", self._value._as_parameter)
+        _logger.debug("Freeing SSL CTX: %d", self.raw)
         SSL_CTX_free(self._value)
         self._value = None
 
@@ -82,7 +82,7 @@ class _SSL(_Rsrc):
         super(_SSL, self).__init__(value)
 
     def __del__(self):
-        _logger.debug("Freeing SSL: %d", self._value._as_parameter)
+        _logger.debug("Freeing SSL: %d", self.raw)
         SSL_free(self._value)
         self._value = None
 
@@ -268,7 +268,7 @@ class SSLConnection(object):
 
     def _get_cookie(self, ssl):
         assert self._listening
-        assert self._ssl.value._as_parameter == ssl._as_parameter
+        assert self._ssl.raw == ssl.raw
         if self._listening_peer_address:
             peer_address = self._listening_peer_address
         else:
@@ -397,7 +397,7 @@ class SSLConnection(object):
         self._listening = True
         try:
             _logger.debug("Invoking DTLSv1_listen for ssl: %d",
-                          self._ssl.value._as_parameter)
+                          self._ssl.raw)
             dtls_peer_address = DTLSv1_listen(self._ssl.value)
         except openssl_error() as err:
             if err.ssl_error == SSL_ERROR_WANT_READ:
