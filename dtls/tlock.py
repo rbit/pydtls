@@ -21,6 +21,10 @@ DO_DEBUG_LOG = False
 def tlock_init():
     if not globals().has_key("threading"):
         return  # nothing to configure
+    # The standard library ssl module's lock implementation is more efficient;
+    # do not override it if it has been established
+    if CRYPTO_get_id_callback():
+        return
     global _locks
     num_locks = CRYPTO_num_locks()
     _locks = tuple(threading.Lock() for _ in range(num_locks))

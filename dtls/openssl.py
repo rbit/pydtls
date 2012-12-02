@@ -486,6 +486,7 @@ map(lambda x: _make_function(*x), (
     ("SSLeay_version", libcrypto, ((c_char_p, "ret"), (c_int, "t"))),
     ("CRYPTO_set_locking_callback", libcrypto,
      ((None, "ret"), (c_void_p, "func")), False),
+    ("CRYPTO_get_id_callback", libcrypto, ((c_void_p, "ret"),), True, None),
     ("CRYPTO_num_locks", libcrypto, ((c_int, "ret"),)),
     ("DTLSv1_server_method", libssl, ((DTLSv1Method, "ret"),)),
     ("DTLSv1_client_method", libssl, ((DTLSv1Method, "ret"),)),
