@@ -66,6 +66,7 @@ else:
 BIO_NOCLOSE = 0x00
 BIO_CLOSE = 0x01
 SSLEAY_VERSION = 0
+SSL_OP_NO_COMPRESSION = 0x00020000
 SSL_VERIFY_NONE = 0x00
 SSL_VERIFY_PEER = 0x01
 SSL_VERIFY_FAIL_IF_NO_PEER_CERT = 0x02
@@ -89,6 +90,7 @@ CRYPTO_LOCK = 1
 #
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
 SSL_CTRL_SET_READ_AHEAD = 41
+SSL_CTRL_OPTIONS = 32
 BIO_CTRL_INFO = 3
 BIO_CTRL_DGRAM_SET_CONNECTED = 32
 BIO_CTRL_DGRAM_GET_PEER = 46
@@ -453,6 +455,7 @@ _subst = {c_long_parm: c_long}
 _sigs = {}
 __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
            "SSLEAY_VERSION",
+           "SSL_OP_NO_COMPRESSION",
            "SSL_VERIFY_NONE", "SSL_VERIFY_PEER",
            "SSL_VERIFY_FAIL_IF_NO_PEER_CERT", "SSL_VERIFY_CLIENT_ONCE",
            "SSL_SESS_CACHE_OFF", "SSL_SESS_CACHE_CLIENT",
@@ -470,6 +473,7 @@ __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
            "BIO_dgram_get_peer", "BIO_dgram_set_peer",
            "BIO_set_nbio",
            "SSL_CTX_set_session_cache_mode", "SSL_CTX_set_read_ahead",
+           "SSL_CTX_set_options",
            "SSL_read", "SSL_write",
            "SSL_CTX_set_cookie_cb",
            "OBJ_obj2txt", "decode_ASN1_STRING", "ASN1_TIME_print",
@@ -635,6 +639,10 @@ def SSL_CTX_set_read_ahead(ctx, m):
     # Returns the previous value of m
     _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_READ_AHEAD, m, None)
 
+def SSL_CTX_set_options(ctx, options):
+    # Returns the new option bitmaks after adding the given options
+    _SSL_CTX_ctrl(ctx, SSL_CTRL_OPTIONS, options, None)
+
 _rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte),
                                      POINTER(c_uint))
 _rint_voidp_ubytep_uint = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte), c_uint)
@@ -716,7 +724,9 @@ def SSL_read(ssl, length):
     return buf.raw[:res_len]
 
 def SSL_write(ssl, data):
-    if hasattr(data, "tobytes") and callable(data.tobytes):
+    if isinstance(data, str):
+        str_data = data
+    elif hasattr(data, "tobytes") and callable(data.tobytes):
         str_data = data.tobytes()
     else:
         str_data = str(data)

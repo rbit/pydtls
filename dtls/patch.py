@@ -32,6 +32,8 @@ def do_patch():
     global _orig_SSLSocket_init, _orig_get_server_certificate
     global ssl
     ssl = _ssl
+    if hasattr(ssl, "PROTOCOL_DTLSv1"):
+        return
     ssl.PROTOCOL_DTLSv1 = PROTOCOL_DTLSv1
     ssl._PROTOCOL_NAMES[PROTOCOL_DTLSv1] = "DTLSv1"
     ssl.DTLS_OPENSSL_VERSION_NUMBER = DTLS_OPENSSL_VERSION_NUMBER

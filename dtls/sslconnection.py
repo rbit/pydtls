@@ -175,6 +175,9 @@ class SSLConnection(object):
     def _config_ssl_ctx(self, verify_mode):
         SSL_CTX_set_verify(self._ctx.value, verify_mode)
         SSL_CTX_set_read_ahead(self._ctx.value, 1)
+        # Compression occurs at the stream layer now, leading to datagram
+        # corruption when packet loss occurs
+        SSL_CTX_set_options(self._ctx.value, SSL_OP_NO_COMPRESSION)
         if self._certfile:
             SSL_CTX_use_certificate_chain_file(self._ctx.value, self._certfile)
         if self._keyfile:
@@ -237,10 +240,14 @@ class SSLConnection(object):
 
     def _check_nbio(self):
         timeout = self._sock.gettimeout()
-        BIO_set_nbio(self._wbio.value, timeout is not None)
+        if self._wbio_nb != timeout is not None:
+            BIO_set_nbio(self._wbio.value, timeout is not None)
+            self._wbio_nb = timeout is not None
         if self._wbio is not self._rbio:
             timeout = self._rsock.gettimeout()
-            BIO_set_nbio(self._rbio.value, timeout is not None)
+            if self._rbio_nb != timeout is not None:
+                BIO_set_nbio(self._rbio.value, timeout is not None)
+                self._rbio_nb = timeout is not None
         return timeout  # read channel timeout
 
     def _wrap_socket_library_call(self, call, timeout_error):
@@ -314,6 +321,7 @@ class SSLConnection(object):
         self._suppress_ragged_eofs = suppress_ragged_eofs
         self._ciphers = ciphers
         self._handshake_done = False
+        self._wbio_nb = self._rbio_nb = False
 
         if isinstance(sock, SSLConnection):
             post_init = self._copy_server()
