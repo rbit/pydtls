@@ -316,13 +316,15 @@ def remote_client(manager_address):
 # Test runner
 #
 
-def run_test(server_args, client_args):
+def run_test(server_args, client_args, port):
+    if port is None:
+        port = 0
     if QUEUE:
         # bind to all interfaces, for remote clients
-        listen_addr = '', 0
+        listen_addr = '', port
     else:
         # bind to loopback only, for local clients
-        listen_addr = 'localhost', 0
+        listen_addr = 'localhost', port
     svr = iter(server(*server_args, listen_addr=listen_addr))
     listen_addr = svr.next()
     listen_addr = 'localhost', listen_addr[1]
@@ -369,6 +371,8 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("-s", "--server", type=port, metavar="PORT",
                         help="local server port for remote clients")
+    parser.add_argument("-p", "--port", type=port, metavar="SUITEPORT",
+                        help="fixed suite port instead of dynamic assignment")
     parser.add_argument("-c", "--client", type=endpoint, metavar="ENDPOINT",
                         help="remote server endpoint for this client")
     args = parser.parse_args()
@@ -407,6 +411,6 @@ if __name__ == "__main__":
             break
         if not choice:
             break
-        run_test(suites[selector[choice]], suites[selector[choice]])
+        run_test(suites[selector[choice]], suites[selector[choice]], args.port)
     if args.server:
         stop_client_manager()
