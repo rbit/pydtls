@@ -1,0 +1,16 @@
+# Prebuilt directory manifest. Written by Ray Brown.
+# This file is executed by the distribution builder, as well as the dtls
+# package startup code; the purpose of the latter is being able to run
+# from a cloned source directory without executing any sort of installation
+# procedure. This file provides the definitions required to create
+# a distribution including this directory's prebuilts.
+
+from os import path
+from glob import glob
+
+assert MANIFEST_DIR
+
+ARCHITECTURE = "mingw-win32"
+FORMATS = "gztar"
+FILES = map(lambda x: path.basename(x),
+            glob(path.join(MANIFEST_DIR, "*.dll")))
