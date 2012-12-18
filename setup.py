@@ -1,5 +1,22 @@
 #!/usr/bin/env python
-# PyDTLS setup script. Written by Ray Brown.
+# PyDTLS setup script.
+
+# Copyright 2012 Ray Brown
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# The License is also distributed with this work in the file named "LICENSE."
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """PyDTLS setup script
 
 Install or create a distribution of the PyDTLS package.
@@ -16,7 +33,7 @@ for scheme in INSTALL_SCHEMES.values():
     scheme['data'] = scheme['purelib']
 
 NAME = "Dtls"
-VERSION = "0.1"
+VERSION = "0.1.0"
 
 DIST_DIR = "dist"
 FORMAT_TO_SUFFIX = { "zip": ".zip",
@@ -41,13 +58,16 @@ def invoke_setup(data_files=None):
                 with open(data_files_file, "rb") as fl:
                     data_files = load(fl)
             except IOError:
-                pass
+                data_files = []
+        data_files.append(('dtls', ["NOTICE", "LICENSE", "README.txt"]),)
         setup(name=NAME,
               version=VERSION,
               description="Python Datagram Transport Layer Security",
               author="Ray Brown",
               author_email="code@liquibits.com",
-              url="http://www.github.com/pydtls",
+              url="https://github.com/rbit/pydtls",
+              license="LICENSE",
+              long_description=open("README.txt").read(),
               packages=["dtls", "dtls.demux", "dtls.test"],
               package_data={"dtls.test": ["certs/*.pem"]},
               data_files=data_files,
