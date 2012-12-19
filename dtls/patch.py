@@ -25,7 +25,7 @@ has the following effects:
     * The constant PROTOCOL_DTLSv1 is added at ssl module level
     * DTLSv1's protocol name is added to the ssl module's id-to-name dictionary
     * The constants DTLS_OPENSSL_VERSION* are added at the ssl module level
-    * Instntiation of ssl.SSLSocket with sock.type == socket.SOCK_DGRAM is
+    * Instantiation of ssl.SSLSocket with sock.type == socket.SOCK_DGRAM is
       supported and leads to substitution of this module's DTLS code paths for
       that SSLSocket instance
     * Direct instantiation of SSLSocket as well as instantiation through
