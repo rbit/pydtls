@@ -37,6 +37,7 @@ from os import path, urandom
 from timeit import timeit
 from select import select
 from multiprocessing import Process
+from multiprocessing.managers import BaseManager
 from dtls import do_patch
 
 AF_INET4_6 = socket.AF_INET
@@ -188,7 +189,11 @@ def server(sock_type, do_wrap, listen_addr):
             wrap.listen(0)
     yield wrap.getsockname()
     if do_wrap or sock_type == socket.SOCK_STREAM:
-        conn = wrap.accept()[0]
+        while True:
+            acc_res = wrap.accept()
+            if acc_res:
+                break
+        conn = acc_res[0]
     else:
         conn = wrap
     wrap.setblocking(False)
@@ -234,6 +239,7 @@ def server(sock_type, do_wrap, listen_addr):
 #
 
 def client(sock_type, do_wrap, listen_addr):
+    do_patch()  # we might be in a new process
     sock = socket.socket(AF_INET4_6, sock_type)
     if do_wrap:
         wrap = ssl.wrap_socket(sock, ciphers="NULL")
@@ -291,15 +297,18 @@ def release_clients():
 
 MANAGER = None
 QUEUE = None
+class Manager(BaseManager): pass
 
 def start_client_manager(port):
-    from multiprocessing.managers import BaseManager
     global MANAGER, QUEUE
     make_client_manager()
-    class Manager(BaseManager): pass
     Manager.register("get_queue", get_queue)
     Manager.register("release_clients", release_clients)
-    MANAGER = Manager(('', port), COMM_KEY)
+    if sys.platform.startswith('win'):
+        addr = socket.gethostname(), port
+    else:
+        addr = '', port
+    MANAGER = Manager(addr, COMM_KEY)
     MANAGER.start(make_client_manager)
     QUEUE = MANAGER.get_queue()
 
@@ -311,9 +320,6 @@ def stop_client_manager():
     MANAGER = None
 
 def remote_client(manager_address):
-    from multiprocessing.managers import BaseManager
-    do_patch()
-    class Manager(BaseManager): pass
     Manager.register("get_queue")
     manager = Manager(manager_address, COMM_KEY)
     manager.connect()

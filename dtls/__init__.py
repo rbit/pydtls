@@ -51,7 +51,10 @@ def _prep_bins():
         return  # there are no prebuilts for this platform - nothing to do
     files = map(lambda x: path.join(prebuilt_path, x), config["FILES"])
     for prebuilt_file in files:
-        copy(path.join(prebuilt_path, prebuilt_file), package_root)
+        try:
+            copy(path.join(prebuilt_path, prebuilt_file), package_root)
+        except IOError:
+            pass
 
 _prep_bins()  # prepare before module imports
 
