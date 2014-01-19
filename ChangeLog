@@ -1,0 +1,17 @@
+2014-01-18  Ray Brown  <code@liquibits.com>
+
+	* setup.py: First stable version, 1.0.0
+	* dtls/test/makecerts: Generate valid and current certificates for
+	unit test suite
+	* dtls/test/openssl_ca.cnf: Configuration file for CA certificate
+	* dtls/test/openssl_server.cnf: Configuration file for server
+	certificate
+	* dtls/test/certs/ca-cert.pem: updated certificate, valid for 10 years
+	* dtls/test/certs/server-cert.pem: updated certificate, valid for
+	10 years
+	* dtls/test/certs/keycert.pem: updated server certificate from server-cert.pem, along with that certificate's private key
+	* dtls/test/server-key.pem: deleted (it was not needed)
+
+2012-12-31  Ray Brown  <code@liquibits.com>
+
+	* All: Version 0.1.0: initial public release

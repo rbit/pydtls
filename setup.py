@@ -33,7 +33,7 @@ for scheme in INSTALL_SCHEMES.values():
     scheme['data'] = scheme['purelib']
 
 NAME = "Dtls"
-VERSION = "0.1.0"
+VERSION = "1.0.0"
 
 DIST_DIR = "dist"
 FORMAT_TO_SUFFIX = { "zip": ".zip",
@@ -59,7 +59,10 @@ def invoke_setup(data_files=None):
                     data_files = load(fl)
             except IOError:
                 data_files = []
-        data_files.append(('dtls', ["NOTICE", "LICENSE", "README.txt"]),)
+        data_files.append(('dtls', ["NOTICE",
+                                    "LICENSE",
+                                    "README.txt",
+                                    "ChangeLog"]),)
         setup(name=NAME,
               version=VERSION,
               description="Python Datagram Transport Layer Security",
@@ -69,7 +72,10 @@ def invoke_setup(data_files=None):
               license="LICENSE",
               long_description=open("README.txt").read(),
               packages=["dtls", "dtls.demux", "dtls.test"],
-              package_data={"dtls.test": ["certs/*.pem"]},
+              package_data={"dtls.test": ["makecerts",
+                                          "openssl_ca.cnf",
+                                          "openssl_server.cnf",
+                                          "certs/*.pem"]},
               data_files=data_files,
               )
     finally:
@@ -104,11 +110,12 @@ def make_dists():
             except OSError:
                 pass
             rename(source_name, target_name)
-    # Finally the distribution without prebuilts
-    argv.append("--formats=zip,gztar")
-    invoke_setup()
 
 if __name__ == "__main__":
+    # Full upload sequence for new version:
+    #    python setup.py sdist --formats=zip,gztar upload
+    #    python setup.py sdist --prebuilts
+    #    Manually add .sdist_with_openssl. archives to repository
     if argv[-1] == "--prebuilts":
         del argv[-1]
         make_dists()
