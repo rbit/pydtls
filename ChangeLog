@@ -1,5 +1,13 @@
 2014-01-18  Ray Brown  <code@liquibits.com>
 
+	* setup.py: Increase version to 1.0.1 for release to PyPI
+
+2014-01-18  Jayson Vantuyl  <kagato@souja.net>
+
+	* sslconnection.py: fix missing error code import
+
+2014-01-18  Ray Brown  <code@liquibits.com>
+
 	* setup.py: First stable version, 1.0.0
 	* dtls/test/makecerts: Generate valid and current certificates for
 	unit test suite
