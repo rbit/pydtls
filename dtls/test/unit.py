@@ -78,7 +78,6 @@ class BasicSocketTests(unittest.TestCase):
 
     def test_constants(self):
         ssl.PROTOCOL_SSLv23
-        ssl.PROTOCOL_SSLv3
         ssl.PROTOCOL_TLSv1
         ssl.PROTOCOL_DTLSv1  # added
         ssl.CERT_NONE
@@ -573,6 +572,9 @@ class AsyncoreEchoServer(threading.Thread):
                 self._ssl_accepting = True
                 # Complete the handshake
                 self.handle_read_event()
+
+            def __hash__(self):
+                return hash(self.socket)
 
             def readable(self):
                 while self.socket.pending() > 0:
