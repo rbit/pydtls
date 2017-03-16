@@ -735,9 +735,15 @@ def DTLSv1_listen(ssl):
     errcheck_ord(ret, _SSL_ctrl, (ssl, DTLS_CTRL_LISTEN, 0, byref(su)))
     return addr_tuple_from_sockaddr_u(su)
 
-def SSL_read(ssl, length):
-    buf = create_string_buffer(length)
-    res_len = _SSL_read(ssl, buf, sizeof(buf))
+def SSL_read(ssl, length, buffer):
+    if buffer:
+        length = min(length, len(buffer))
+        buf = (c_char * length).from_buffer(buffer)
+    else:
+        buf = create_string_buffer(length)
+    res_len = _SSL_read(ssl, buf, length)
+    if buffer:
+        return res_len
     return buf.raw[:res_len]
 
 def SSL_write(ssl, data):

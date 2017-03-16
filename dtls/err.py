@@ -96,8 +96,8 @@ def raise_ssl_error(code, nested=None):
     """Raise an SSL error with the given error code"""
     err_string = str(code) + ": " + _ssl_errors[code]
     if nested:
-        raise SSLError(err_string, nested)
-    raise SSLError(err_string)
+        raise SSLError(code, err_string + str(nested))
+    raise SSLError(code, err_string)
 
 _ssl_errors = {
     ERR_NO_CERTS: "No root certificates specified for verification " + \

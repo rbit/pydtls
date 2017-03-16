@@ -1,3 +1,11 @@
+2017-02-27  Ray Brown  <code@liquibits.com>
+
+	* dtls/openssl.py: support reading directly into given buffer instead of forcing buffer copy (for ssl module compatibility)
+	* dtls/sslconnection.py: in-situ receive support, as above
+	* dtls/patch.py: various changes for compatibility with the ssl module of Python 2.7.12; note that the ssl module's new SSLContext is not supported
+	* dtls/test/unit.py: changes to support the updated ssl module, including fix of deprecation warnings
+	* setup.py: increase version to 1.0.2
+
 2014-01-18  Ray Brown  <code@liquibits.com>
 
 	* setup.py: Increase version to 1.0.1 for release to PyPI

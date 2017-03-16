@@ -514,7 +514,7 @@ class SSLConnection(object):
         self._handshake_done = True
         _logger.debug("...completed handshake")
 
-    def read(self, len=1024):
+    def read(self, len=1024, buffer=None):
         """Read data from connection
 
         Read up to len bytes and return them.
@@ -526,7 +526,7 @@ class SSLConnection(object):
         """
 
         return self._wrap_socket_library_call(
-            lambda: SSL_read(self._ssl.value, len), ERR_READ_TIMEOUT)
+            lambda: SSL_read(self._ssl.value, len, buffer), ERR_READ_TIMEOUT)
 
     def write(self, data):
         """Write data to connection
