@@ -74,14 +74,19 @@ def _wrap_socket(sock, keyfile=None, certfile=None,
                  server_side=False, cert_reqs=CERT_NONE,
                  ssl_version=PROTOCOL_DTLS, ca_certs=None,
                  do_handshake_on_connect=True,
-                 suppress_ragged_eofs=True, ciphers=None):
+                 suppress_ragged_eofs=True,
+                 ciphers=None,
+                 cb_user_config_ssl_ctx=None,
+                 cb_user_config_ssl=None):
 
     return ssl.SSLSocket(sock, keyfile=keyfile, certfile=certfile,
                          server_side=server_side, cert_reqs=cert_reqs,
                          ssl_version=ssl_version, ca_certs=ca_certs,
                          do_handshake_on_connect=do_handshake_on_connect,
                          suppress_ragged_eofs=suppress_ragged_eofs,
-                         ciphers=ciphers)
+                         ciphers=ciphers,
+                         cb_user_config_ssl_ctx=cb_user_config_ssl_ctx,
+                         cb_user_config_ssl=cb_user_config_ssl)
 
 def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv23, ca_certs=None):
     """Retrieve a server certificate
@@ -115,7 +120,9 @@ def _SSLSocket_init(self, sock=None, keyfile=None, certfile=None,
                     family=AF_INET, type=SOCK_STREAM, proto=0, fileno=None,
                     suppress_ragged_eofs=True, npn_protocols=None, ciphers=None,
                     server_hostname=None,
-                    _context=None):
+                    _context=None,
+                    cb_user_config_ssl_ctx=None,
+                    cb_user_config_ssl=None):
     is_connection = is_datagram = False
     if isinstance(sock, SSLConnection):
         is_connection = True
@@ -167,7 +174,9 @@ def _SSLSocket_init(self, sock=None, keyfile=None, certfile=None,
                                          server_side, cert_reqs,
                                          ssl_version, ca_certs,
                                          do_handshake_on_connect,
-                                         suppress_ragged_eofs, ciphers)
+                                         suppress_ragged_eofs, ciphers,
+                                         cb_user_config_ssl_ctx=cb_user_config_ssl_ctx,
+                                         cb_user_config_ssl=cb_user_config_ssl)
     else:
         self._connected = True
         self._sslobj = sock
@@ -185,6 +194,8 @@ def _SSLSocket_init(self, sock=None, keyfile=None, certfile=None,
     self.do_handshake_on_connect = do_handshake_on_connect
     self.suppress_ragged_eofs = suppress_ragged_eofs
     self._makefile_refs = 0
+    self._user_config_ssl_ctx = cb_user_config_ssl_ctx
+    self._user_config_ssl = cb_user_config_ssl
 
     # Perform method substitution and addition (without reference cycle)
     self._real_connect = MethodType(_SSLSocket_real_connect, proxy(self))
@@ -203,7 +214,9 @@ def _SSLSocket_listen(self, ignored):
                                  self.cert_reqs, self.ssl_version,
                                  self.ca_certs,
                                  self.do_handshake_on_connect,
-                                 self.suppress_ragged_eofs, self.ciphers)
+                                 self.suppress_ragged_eofs, self.ciphers,
+                                 cb_user_config_ssl_ctx=self._user_config_ssl_ctx,
+                                 cb_user_config_ssl=self._user_config_ssl)
 
 def _SSLSocket_accept(self):
     if self._connected:
@@ -218,7 +231,9 @@ def _SSLSocket_accept(self):
                                  self.cert_reqs, self.ssl_version,
                                  self.ca_certs,
                                  self.do_handshake_on_connect,
-                                 self.suppress_ragged_eofs, self.ciphers)
+                                 self.suppress_ragged_eofs, self.ciphers,
+                                 cb_user_config_ssl_ctx=self._user_config_ssl_ctx,
+                                 cb_user_config_ssl=self._user_config_ssl)
     return new_ssl_sock, addr
 
 def _SSLSocket_real_connect(self, addr, return_errno):
@@ -229,7 +244,9 @@ def _SSLSocket_real_connect(self, addr, return_errno):
                                  self.cert_reqs, self.ssl_version,
                                  self.ca_certs,
                                  self.do_handshake_on_connect,
-                                 self.suppress_ragged_eofs, self.ciphers)
+                                 self.suppress_ragged_eofs, self.ciphers,
+                                 cb_user_config_ssl_ctx=self._user_config_ssl_ctx,
+                                 cb_user_config_ssl=self._user_config_ssl)
     try:
         self._sslobj.connect(addr)
     except socket_error as e:

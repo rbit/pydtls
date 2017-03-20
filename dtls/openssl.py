@@ -803,6 +803,10 @@ map(lambda x: _make_function(*x), (
      ((EC_KEY, "ret"), (c_int, "nid"))),
     ("EC_KEY_free", libcrypto,
      ((None, "ret"), (EC_KEY, "key"))),
+    ("EC_curve_nist2nid", libcrypto,
+     ((c_int, "ret"), (POINTER(c_char), "name")), True, None),
+    ("EC_curve_nid2nist", libcrypto,
+     ((c_char_p, "ret"), (c_int, "nid")), True, None),
     ))
 
 #

@@ -1,5 +1,20 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added an interface in SSLConnection() to access SSLContext() and SSL() for manipulating settings during creation
+
+	* dtls/openssl.py:
+		- Added utility fucntions EC_curve_nist2nid() and EC_curve_nid2nist()
+	* dtls/patch.py:
+		- Extended wrap_socket() arguments with callbacks for user config functions of ssl context and ssl session values
+		- Extended SSLSocket() arguments with callbacks for user config functions of ssl context and ssl session values
+	* dtls/sslconnection.py:
+		- Extended SSLConnection() arguments with callbacks for user config functions of ssl context and ssl session values
+		- During the init of client and server the corresponding user config functions are called (if given)
+		- Added new classes SSLContext() [set_ciphers(), set_sigalgs(), set_curves(), set_ecdh_curve(), build_cert_chain(),
+		set_ssl_logging()] and SSL() [set_mtu(), set_link_mtu()]
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added methods getting the curves supported by the runtime openSSL lib
 
 	* dtls/openssl.py:
