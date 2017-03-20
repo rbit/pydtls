@@ -1,5 +1,11 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added method SSL_CTX_build_cert_chain()
+
+	* dtls/openssl.py: Added SSL_CTX_build_cert_chain() and corresponding constants
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added methods *_clear_options() and *_get_options()
 
 	* dtls/openssl.py:

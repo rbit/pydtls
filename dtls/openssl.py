@@ -98,6 +98,11 @@ SSL_SESS_CACHE_NO_INTERNAL_LOOKUP = 0x0100
 SSL_SESS_CACHE_NO_INTERNAL_STORE = 0x0200
 SSL_SESS_CACHE_NO_INTERNAL = \
   SSL_SESS_CACHE_NO_INTERNAL_LOOKUP | SSL_SESS_CACHE_NO_INTERNAL_STORE
+SSL_BUILD_CHAIN_FLAG_UNTRUSTED = 0x1
+SSL_BUILD_CHAIN_FLAG_NO_ROOT = 0x2
+SSL_BUILD_CHAIN_FLAG_CHECK = 0x4
+SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR = 0x8
+SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR = 0x10
 SSL_FILE_TYPE_PEM = 1
 GEN_DIRNAME = 4
 NID_subject_alt_name = 85
@@ -136,6 +141,7 @@ SSL_CTRL_OPTIONS = 32
 SSL_CTRL_SET_READ_AHEAD = 41
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
 SSL_CTRL_CLEAR_OPTIONS = 77
+SSL_CTRL_BUILD_CERT_CHAIN = 105
 
 BIO_CTRL_INFO = 3
 BIO_CTRL_DGRAM_SET_CONNECTED = 32
@@ -521,6 +527,8 @@ __all__ = [
     "SSL_CB_ACCEPT_LOOP", "SSL_CB_ACCEPT_EXIT",
     "SSL_CB_CONNECT_LOOP", "SSL_CB_CONNECT_EXIT",
     "SSL_CB_HANDSHAKE_START", "SSL_CB_HANDSHAKE_DONE",
+    "SSL_BUILD_CHAIN_FLAG_UNTRUSTED", "SSL_BUILD_CHAIN_FLAG_NO_ROOT", "SSL_BUILD_CHAIN_FLAG_CHECK",
+    "SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR", "SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR",
     "SSL_FILE_TYPE_PEM",
     "GEN_DIRNAME", "NID_subject_alt_name",
     "CRYPTO_LOCK",
@@ -536,6 +544,7 @@ __all__ = [
     "SSL_CTX_set_session_cache_mode", "SSL_CTX_set_read_ahead",
     "SSL_CTX_set_options", "SSL_CTX_clear_options", "SSL_CTX_get_options",
     "SSL_CTX_set_info_callback",
+    "SSL_CTX_build_cert_chain",
     "SSL_read", "SSL_write",
     "SSL_set_options", "SSL_clear_options", "SSL_get_options",
     "SSL_set_mtu",
@@ -762,6 +771,9 @@ def SSL_CTX_set_info_callback(ctx, app_info_cb):
     global _info_callback
     _info_callback[ctx] = _rvoid_voidp_int_int(py_info_callback)
     _SSL_CTX_set_info_callback(ctx, _info_callback[ctx])
+
+def SSL_CTX_build_cert_chain(ctx, flags):
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_BUILD_CERT_CHAIN, flags, None)
 
 _rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte),
                                      POINTER(c_uint))
