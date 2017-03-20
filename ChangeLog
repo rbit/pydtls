@@ -1,5 +1,21 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added new methods for DTLSv1.2
+
+	* dtls/err.py: Added error code ERR_WRONG_VERSION_NUMBER
+	* dtls/openssl.py: Added DTLS_server_method(), DTLSv1_2_server_method() and DTLSv1_2_client_method()
+	* dtls/patch.py: Default protocol DTLS for ssl.wrap_socket() and ssl.SSLSocket()
+	* dtls/sslconnection.py:
+		- Introduced PROTOCOL_DTLSv1_2 and PROTOCOL_DTLS (the latter one is a synonym for the "higher" version)
+		- Updated _init_client() and _init_server() with the new protocol methods
+		- Default protocol DTLS for SSLConnection()
+		- Return on ERR_WRONG_VERSION_NUMBER if client and server cannot agree on protocol version
+	* dtls/test/unit.py:
+		- Extended test_get_server_certificate() to iterate over the different protocol combinations
+		- Extended test_protocol_dtlsv1() to try the different protocol combinations between client and server
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Updating openSSL libs to v1.0.2l-dev
 
 	* dtls/openssl.py: Added mtu-functions SSL_set_mtu() and DTLS_set_link_mtu()

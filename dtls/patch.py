@@ -36,11 +36,12 @@ has the following effects:
 
 from socket import socket, getaddrinfo, _delegate_methods, error as socket_error
 from socket import AF_INET, SOCK_STREAM, SOCK_DGRAM
+from ssl import PROTOCOL_SSLv3, PROTOCOL_SSLv23, CERT_NONE
 from types import MethodType
 from weakref import proxy
 import errno
 
-from sslconnection import SSLConnection, PROTOCOL_DTLSv1, CERT_NONE
+from sslconnection import SSLConnection, PROTOCOL_DTLS, PROTOCOL_DTLSv1, PROTOCOL_DTLSv1_2
 from sslconnection import DTLS_OPENSSL_VERSION_NUMBER, DTLS_OPENSSL_VERSION, DTLS_OPENSSL_VERSION_INFO
 from err import raise_as_ssl_module_error
 
@@ -52,8 +53,14 @@ def do_patch():
     ssl = _ssl
     if hasattr(ssl, "PROTOCOL_DTLSv1"):
         return
+    _orig_wrap_socket = ssl.wrap_socket
+    ssl.wrap_socket = _wrap_socket
+    ssl.PROTOCOL_DTLS = PROTOCOL_DTLS
     ssl.PROTOCOL_DTLSv1 = PROTOCOL_DTLSv1
+    ssl.PROTOCOL_DTLSv1_2 = PROTOCOL_DTLSv1_2
+    ssl._PROTOCOL_NAMES[PROTOCOL_DTLS] = "DTLS"
     ssl._PROTOCOL_NAMES[PROTOCOL_DTLSv1] = "DTLSv1"
+    ssl._PROTOCOL_NAMES[PROTOCOL_DTLSv1_2] = "DTLSv1.2"
     ssl.DTLS_OPENSSL_VERSION_NUMBER = DTLS_OPENSSL_VERSION_NUMBER
     ssl.DTLS_OPENSSL_VERSION = DTLS_OPENSSL_VERSION
     ssl.DTLS_OPENSSL_VERSION_INFO = DTLS_OPENSSL_VERSION_INFO
@@ -63,7 +70,18 @@ def do_patch():
     ssl.get_server_certificate = _get_server_certificate
     raise_as_ssl_module_error()
 
-PROTOCOL_SSLv23 = 2
+def _wrap_socket(sock, keyfile=None, certfile=None,
+                 server_side=False, cert_reqs=CERT_NONE,
+                 ssl_version=PROTOCOL_DTLS, ca_certs=None,
+                 do_handshake_on_connect=True,
+                 suppress_ragged_eofs=True, ciphers=None):
+
+    return ssl.SSLSocket(sock, keyfile=keyfile, certfile=certfile,
+                         server_side=server_side, cert_reqs=cert_reqs,
+                         ssl_version=ssl_version, ca_certs=ca_certs,
+                         do_handshake_on_connect=do_handshake_on_connect,
+                         suppress_ragged_eofs=suppress_ragged_eofs,
+                         ciphers=ciphers)
 
 def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv23, ca_certs=None):
     """Retrieve a server certificate
@@ -74,7 +92,7 @@ def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv23, ca_certs=None):
     If 'ssl_version' is specified, use it in the connection attempt.
     """
 
-    if ssl_version != PROTOCOL_DTLSv1:
+    if ssl_version not in (PROTOCOL_DTLS, PROTOCOL_DTLSv1, PROTOCOL_DTLSv1_2):
         return _orig_get_server_certificate(addr, ssl_version, ca_certs)
 
     if ca_certs is not None:
@@ -92,7 +110,7 @@ def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv23, ca_certs=None):
 
 def _SSLSocket_init(self, sock=None, keyfile=None, certfile=None,
                     server_side=False, cert_reqs=CERT_NONE,
-                    ssl_version=PROTOCOL_SSLv23, ca_certs=None,
+                    ssl_version=PROTOCOL_DTLS, ca_certs=None,
                     do_handshake_on_connect=True,
                     family=AF_INET, type=SOCK_STREAM, proto=0, fileno=None,
                     suppress_ragged_eofs=True, npn_protocols=None, ciphers=None,

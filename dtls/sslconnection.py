@@ -52,7 +52,7 @@ from weakref import proxy
 from err import openssl_error, InvalidSocketError
 from err import raise_ssl_error
 from err import SSL_ERROR_WANT_READ, SSL_ERROR_SYSCALL
-from err import ERR_COOKIE_MISMATCH, ERR_NO_CERTS
+from err import ERR_WRONG_VERSION_NUMBER, ERR_COOKIE_MISMATCH, ERR_NO_CERTS
 from err import ERR_NO_CIPHER, ERR_HANDSHAKE_TIMEOUT, ERR_PORT_UNREACHABLE
 from err import ERR_READ_TIMEOUT, ERR_WRITE_TIMEOUT
 from err import ERR_BOTH_KEY_CERT_FILES, ERR_BOTH_KEY_CERT_FILES_SVR
@@ -64,6 +64,8 @@ from util import _Rsrc, _BIO
 _logger = getLogger(__name__)
 
 PROTOCOL_DTLSv1 = 256
+PROTOCOL_DTLSv1_2 = 258
+PROTOCOL_DTLS = 259
 CERT_NONE = 0
 CERT_OPTIONAL = 1
 CERT_REQUIRED = 2
@@ -202,7 +204,12 @@ class SSLConnection(object):
         else:
             self._rsock = rsock
             self._rbio = _BIO(BIO_new_dgram(self._rsock.fileno(), BIO_NOCLOSE))
-        self._ctx = _CTX(SSL_CTX_new(DTLSv1_server_method()))
+        server_method = DTLS_server_method
+        if self._ssl_version == PROTOCOL_DTLSv1_2:
+            server_method = DTLSv1_2_server_method
+        elif self._ssl_version == PROTOCOL_DTLSv1:
+            server_method = DTLSv1_server_method
+        self._ctx = _CTX(SSL_CTX_new(server_method()))
         SSL_CTX_set_session_cache_mode(self._ctx.value, SSL_SESS_CACHE_OFF)
         if self._cert_reqs == CERT_NONE:
             verify_mode = SSL_VERIFY_NONE
@@ -232,7 +239,12 @@ class SSLConnection(object):
 
         self._wbio = _BIO(BIO_new_dgram(self._sock.fileno(), BIO_NOCLOSE))
         self._rbio = self._wbio
-        self._ctx = _CTX(SSL_CTX_new(DTLSv1_client_method()))
+        client_method = DTLSv1_2_client_method  # no "any" exists, therefore use v1_2 (highest possible)
+        if self._ssl_version == PROTOCOL_DTLSv1_2:
+            client_method = DTLSv1_2_client_method
+        elif self._ssl_version == PROTOCOL_DTLSv1:
+            client_method = DTLSv1_client_method
+        self._ctx = _CTX(SSL_CTX_new(client_method()))
         if self._cert_reqs == CERT_NONE:
             verify_mode = SSL_VERIFY_NONE
         else:
@@ -364,7 +376,7 @@ class SSLConnection(object):
 
     def __init__(self, sock, keyfile=None, certfile=None,
                  server_side=False, cert_reqs=CERT_NONE,
-                 ssl_version=PROTOCOL_DTLSv1, ca_certs=None,
+                 ssl_version=PROTOCOL_DTLS, ca_certs=None,
                  do_handshake_on_connect=True,
                  suppress_ragged_eofs=True, ciphers=None):
         """Constructor
@@ -485,6 +497,9 @@ class SSLConnection(object):
             if err.ssl_error == SSL_ERROR_WANT_READ:
                 # This method must be called again to forward the next datagram
                 _logger.debug("DTLSv1_listen must be resumed")
+                return
+            elif err.errqueue and err.errqueue[0][0] == ERR_WRONG_VERSION_NUMBER:
+                _logger.debug("Wrong version number; aborting handshake")
                 return
             elif err.errqueue and err.errqueue[0][0] == ERR_COOKIE_MISMATCH:
                 _logger.debug("Mismatching cookie received; aborting handshake")

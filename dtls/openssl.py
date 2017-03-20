@@ -184,9 +184,9 @@ class FuncParam(object):
         return self._as_parameter.value
 
 
-class DTLSv1Method(FuncParam):
+class DTLS_Method(FuncParam):
     def __init__(self, value):
-        super(DTLSv1Method, self).__init__(value)
+        super(DTLS_Method, self).__init__(value)
 
 
 class BIO_METHOD(FuncParam):
@@ -563,12 +563,18 @@ map(lambda x: _make_function(*x), (
      ((c_void_p, "ret"),), True, None),
     ("CRYPTO_num_locks", libcrypto,
      ((c_int, "ret"),)),
+    ("DTLS_server_method", libssl,
+     ((DTLS_Method, "ret"),)),
     ("DTLSv1_server_method", libssl,
-     ((DTLSv1Method, "ret"),)),
+     ((DTLS_Method, "ret"),)),
+    ("DTLSv1_2_server_method", libssl,
+     ((DTLS_Method, "ret"),)),
     ("DTLSv1_client_method", libssl,
-     ((DTLSv1Method, "ret"),)),
+     ((DTLS_Method, "ret"),)),
+    ("DTLSv1_2_client_method", libssl,
+     ((DTLS_Method, "ret"),)),
     ("SSL_CTX_new", libssl,
-     ((SSLCTX, "ret"), (DTLSv1Method, "meth"))),
+     ((SSLCTX, "ret"), (DTLS_Method, "meth"))),
     ("SSL_CTX_free", libssl,
      ((None, "ret"), (SSLCTX, "ctx"))),
     ("SSL_CTX_set_cookie_generate_cb", libssl,
