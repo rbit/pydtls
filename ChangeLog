@@ -1,5 +1,16 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added methods getting the curves supported by the runtime openSSL lib
+
+	* dtls/openssl.py:
+		- Added class _EllipticCurve() for easy handling of the builtin curves
+		- Added wrapper get_elliptic_curves() - which uses _EllipticCurve()
+		- Added EC_get_builtin_curves(), EC_KEY_new_by_curve_name() and EC_KEY_free()
+		- Added OBJ_nid2sn() for translating numeric ids to names
+	* dtls/util.py: Added _EC_KEY() derived from _Rsrc() with own free/del method
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added methods for setting and getting the curves used during negotiation and encryption
 
 	* dtls/openssl.py:

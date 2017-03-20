@@ -57,3 +57,15 @@ class _BIO(_Rsrc):
             BIO_free(self._value)
             self.owned = False
         self._value = None
+
+
+class _EC_KEY(_Rsrc):
+    """EC KEY wrapper"""
+    def __init__(self, value):
+        super(_EC_KEY, self).__init__(value)
+
+    def __del__(self):
+        _logger.debug("Freeing EC_KEY: %d", self.raw)
+        from openssl import EC_KEY_free
+        EC_KEY_free(self._value)
+        self._value = None
