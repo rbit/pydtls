@@ -772,6 +772,8 @@ def SSL_write(ssl, data):
         str_data = data
     elif hasattr(data, "tobytes") and callable(data.tobytes):
         str_data = data.tobytes()
+    elif isinstance(data, ctypes.Array):
+        str_data = data.raw
     else:
         str_data = str(data)
     return _SSL_write(ssl, str_data, len(str_data))

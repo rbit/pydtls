@@ -39,6 +39,7 @@ basicConfig(level=DEBUG)  # set now for dtls import code
 from dtls.sslconnection import SSLConnection
 from dtls.err import SSLError, SSL_ERROR_WANT_READ, SSL_ERROR_ZERO_RETURN
 
+
 def main():
     sck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sck.bind(("127.0.0.1", 28000))

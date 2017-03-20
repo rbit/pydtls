@@ -1,5 +1,13 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	SSL_write() extended to handle ctypes.Array as data
+
+	* dtls/openssl.py: SSL_write() can handle ctypes.Array data
+	* dtls/sslconnection.py: Added missing import ERR_BOTH_KEY_CERT_FILES
+	* dtls/test/simple_client.py: Added basic test client to use with dtls/test/echo_seq.py
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Beautified lists and maps, grouped imports for easy merges in the future - no changed functionality!
 
 	* dtls/openssl.py:
