@@ -34,15 +34,16 @@ has the following effects:
       PROTOCOL_DTLSv1 for the parameter ssl_version is supported
 """
 
-from socket import SOCK_DGRAM, socket, _delegate_methods, error as socket_error
-from socket import AF_INET, SOCK_STREAM, SOCK_DGRAM, getaddrinfo
-from sslconnection import SSLConnection, PROTOCOL_DTLSv1, CERT_NONE
-from sslconnection import DTLS_OPENSSL_VERSION_NUMBER, DTLS_OPENSSL_VERSION
-from sslconnection import DTLS_OPENSSL_VERSION_INFO
-from err import raise_as_ssl_module_error
+from socket import socket, getaddrinfo, _delegate_methods, error as socket_error
+from socket import AF_INET, SOCK_STREAM, SOCK_DGRAM
 from types import MethodType
 from weakref import proxy
 import errno
+
+from sslconnection import SSLConnection, PROTOCOL_DTLSv1, CERT_NONE
+from sslconnection import DTLS_OPENSSL_VERSION_NUMBER, DTLS_OPENSSL_VERSION, DTLS_OPENSSL_VERSION_INFO
+from err import raise_as_ssl_module_error
+
 
 def do_patch():
     import ssl as _ssl  # import to be avoided if ssl module is never patched
@@ -76,7 +77,7 @@ def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv23, ca_certs=None):
     if ssl_version != PROTOCOL_DTLSv1:
         return _orig_get_server_certificate(addr, ssl_version, ca_certs)
 
-    if (ca_certs is not None):
+    if ca_certs is not None:
         cert_reqs = ssl.CERT_REQUIRED
     else:
         cert_reqs = ssl.CERT_NONE

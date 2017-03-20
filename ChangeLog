@@ -1,3 +1,15 @@
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
+	Beautified lists and maps, grouped imports for easy merges in the future - no changed functionality!
+
+	* dtls/openssl.py:
+		- Ordered constants according to header file from openSSL
+		- Beautified __all__-list and map for _make_function() in order to easy merges in the future
+		- Added a few returns in order to evaluate the success of the called methods
+	* dtls/patch.py: Grouped imports in the following order - system, local
+	* dtls/sslconnection.py: ssl protocol not hardcoded anymore for forked objects
+	* dtls/x509.py: logger messages working again
+
 2017-02-27  Ray Brown  <code@liquibits.com>
 
 	* dtls/openssl.py: support reading directly into given buffer instead of forcing buffer copy (for ssl module compatibility)

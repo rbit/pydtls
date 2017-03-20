@@ -43,7 +43,7 @@ class _X509(_Rsrc):
         super(_X509, self).__init__(value)
 
     def __del__(self):
-        _logger.debug("Freeing X509: %d", self._value._as_parameter)
+        _logger.debug("Freeing X509: %d", self.raw)
         X509_free(self._value)
         self._value = None
 
@@ -54,10 +54,9 @@ class _STACK(_Rsrc):
         super(_STACK, self).__init__(value)
 
     def __del__(self):
-        _logger.debug("Freeing stack: %d", self._value._as_parameter)
+        _logger.debug("Freeing stack: %d", self.raw)
         sk_pop_free(self._value)
         self._value = None
-
 
 def decode_cert(cert):
     """Convert an X509 certificate into a Python dictionary

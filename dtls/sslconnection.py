@@ -48,6 +48,7 @@ from logging import getLogger
 from os import urandom
 from select import select
 from weakref import proxy
+
 from err import openssl_error, InvalidSocketError
 from err import raise_ssl_error
 from err import SSL_ERROR_WANT_READ, SSL_ERROR_SYSCALL
@@ -334,6 +335,7 @@ class SSLConnection(object):
         self._keyfile = keyfile
         self._certfile = certfile
         self._cert_reqs = cert_reqs
+        self._ssl_version = ssl_version
         self._ca_certs = ca_certs
         self._do_handshake_on_connect = do_handshake_on_connect
         self._suppress_ragged_eofs = suppress_ragged_eofs
@@ -462,7 +464,7 @@ class SSLConnection(object):
                 _logger.debug("Accept returning without connection")
                 return
         new_conn = SSLConnection(self, self._keyfile, self._certfile, True,
-                                 self._cert_reqs, PROTOCOL_DTLSv1,
+                                 self._cert_reqs, self._ssl_version,
                                  self._ca_certs, self._do_handshake_on_connect,
                                  self._suppress_ragged_eofs, self._ciphers)
         new_peer = self._pending_peer_address
