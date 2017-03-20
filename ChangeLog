@@ -1,5 +1,14 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added methods for setting and getting the curves used during negotiation and encryption
+
+	* dtls/openssl.py:
+		- Added SSL_CTX_set1_curves() and SSL_CTX_set1_curves_list()
+		- Added SSL_CTX_set_ecdh_auto() and SSL_CTX_set_tmp_ecdh()
+		- Added SSL_get1_curves(), SSL_get_shared_curve(), SSL_set1_curves() and SSL_set1_curves_list()
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added methods for setting the signature algorithms
 
 	* dtls/openssl.py:

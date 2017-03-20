@@ -136,11 +136,17 @@ SSL_CB_HANDSHAKE_DONE = 0x20
 #
 # Integer constants - internal
 #
+SSL_CTRL_SET_TMP_ECDH = 4
 SSL_CTRL_SET_MTU = 17
 SSL_CTRL_OPTIONS = 32
 SSL_CTRL_SET_READ_AHEAD = 41
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
 SSL_CTRL_CLEAR_OPTIONS = 77
+SSL_CTRL_GET_CURVES = 90
+SSL_CTRL_SET_CURVES = 91
+SSL_CTRL_SET_CURVES_LIST = 92
+SSL_CTRL_GET_SHARED_CURVE = 93
+SSL_CTRL_SET_ECDH_AUTO = 94
 SSL_CTRL_SET_SIGALGS = 97
 SSL_CTRL_SET_SIGALGS_LIST = 98
 SSL_CTRL_SET_CLIENT_SIGALGS = 101
@@ -549,12 +555,17 @@ __all__ = [
     "SSL_CTX_set_options", "SSL_CTX_clear_options", "SSL_CTX_get_options",
     "SSL_CTX_set1_client_sigalgs_list", "SSL_CTX_set1_client_sigalgs",
     "SSL_CTX_set1_sigalgs_list", "SSL_CTX_set1_sigalgs",
+    "SSL_CTX_set1_curves", "SSL_CTX_set1_curves_list",
     "SSL_CTX_set_info_callback",
     "SSL_CTX_build_cert_chain",
+    "SSL_CTX_set_ecdh_auto",
+    "SSL_CTX_set_tmp_ecdh",
     "SSL_read", "SSL_write",
     "SSL_set_options", "SSL_clear_options", "SSL_get_options",
     "SSL_set1_client_sigalgs_list", "SSL_set1_client_sigalgs",
     "SSL_set1_sigalgs_list", "SSL_set1_sigalgs",
+    "SSL_get1_curves", "SSL_get_shared_curve",
+    "SSL_set1_curves", "SSL_set1_curves_list",
     "SSL_set_mtu",
     "SSL_state_string_long", "SSL_alert_type_string_long", "SSL_alert_desc_string_long",
     "SSL_CTX_set_cookie_cb",
@@ -774,6 +785,14 @@ def SSL_CTX_set1_sigalgs_list(ctx, s):
     _s = cast(s, POINTER(c_char))
     return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SIGALGS_LIST, 0, _s)
 
+def SSL_CTX_set1_curves(ctx, clist, clistlen):
+    _curves = (c_int * len(clist))(*clist)
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CURVES, len(_curves), _curves)
+
+def SSL_CTX_set1_curves_list(ctx, s):
+    _s = cast(s, POINTER(c_char))
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CURVES_LIST, 0, _s)
+
 _rvoid_voidp_int_int = CFUNCTYPE(None, c_void_p, c_int, c_int)
 
 _info_callback = dict()
@@ -798,6 +817,13 @@ def SSL_CTX_set_info_callback(ctx, app_info_cb):
 
 def SSL_CTX_build_cert_chain(ctx, flags):
     return _SSL_CTX_ctrl(ctx, SSL_CTRL_BUILD_CERT_CHAIN, flags, None)
+
+def SSL_CTX_set_ecdh_auto(ctx, onoff):
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_ECDH_AUTO, onoff, None)
+
+def SSL_CTX_set_tmp_ecdh(ctx, ecdh):
+    # return 1 on success and 0 on failure
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_TMP_ECDH, 0, ecdh)
 
 _rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte),
                                      POINTER(c_uint))
@@ -923,6 +949,30 @@ def SSL_set1_sigalgs(ssl, slist, slistlen):
 def SSL_set1_sigalgs_list(ssl, s):
     _s = cast(s, POINTER(c_char))
     return _SSL_ctrl(ssl, SSL_CTRL_SET_SIGALGS_LIST, 0, _s)
+
+def SSL_get1_curves(ssl, curves=None):
+    assert curves is None or isinstance(curves, list)
+    if curves is not None:
+        cnt = SSL_get1_curves(ssl, None)
+        if cnt:
+            mem = create_string_buffer(sizeof(POINTER(c_int)) * cnt)
+            _SSL_ctrl(ssl, SSL_CTRL_GET_CURVES, 0, mem)
+            for x in cast(mem, POINTER(c_int))[:cnt]:
+                curves.append(x)
+        return cnt
+    else:
+        return _SSL_ctrl(ssl, SSL_CTRL_GET_CURVES, 0, None)
+
+def SSL_get_shared_curve(ssl, n):
+    return _SSL_ctrl(ssl, SSL_CTRL_GET_SHARED_CURVE, n, 0)
+
+def SSL_set1_curves(ssl, clist, clistlen):
+    _curves = (c_int * len(clist))(*clist)
+    return _SSL_ctrl(ssl, SSL_CTRL_SET_CURVES, len(_curves), _curves)
+
+def SSL_set1_curves_list(ssl, s):
+    _s = cast(s, POINTER(c_char))
+    return _SSL_ctrl(ssl, SSL_CTRL_SET_CURVES_LIST, 0, _s)
 
 def SSL_set_mtu(ssl, mtu):
     return _SSL_ctrl(ssl, SSL_CTRL_SET_MTU, mtu, None)
