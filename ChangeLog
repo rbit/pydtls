@@ -1,5 +1,13 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added methods for setting the signature algorithms
+
+	* dtls/openssl.py:
+		- Added SSL_CTX_set1_client_sigalgs_list(), SSL_CTX_set1_client_sigalgs(), SSL_CTX_set1_sigalgs_list() and SSL_CTX_set1_sigalgs()
+		- Added SSL_set1_client_sigalgs_list(), SSL_set1_client_sigalgs(), SSL_set1_sigalgs_list() and SSL_set1_sigalgs()
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added method SSL_CTX_build_cert_chain()
 
 	* dtls/openssl.py: Added SSL_CTX_build_cert_chain() and corresponding constants

@@ -141,6 +141,10 @@ SSL_CTRL_OPTIONS = 32
 SSL_CTRL_SET_READ_AHEAD = 41
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
 SSL_CTRL_CLEAR_OPTIONS = 77
+SSL_CTRL_SET_SIGALGS = 97
+SSL_CTRL_SET_SIGALGS_LIST = 98
+SSL_CTRL_SET_CLIENT_SIGALGS = 101
+SSL_CTRL_SET_CLIENT_SIGALGS_LIST = 102
 SSL_CTRL_BUILD_CERT_CHAIN = 105
 
 BIO_CTRL_INFO = 3
@@ -543,10 +547,14 @@ __all__ = [
     "BIO_set_nbio",
     "SSL_CTX_set_session_cache_mode", "SSL_CTX_set_read_ahead",
     "SSL_CTX_set_options", "SSL_CTX_clear_options", "SSL_CTX_get_options",
+    "SSL_CTX_set1_client_sigalgs_list", "SSL_CTX_set1_client_sigalgs",
+    "SSL_CTX_set1_sigalgs_list", "SSL_CTX_set1_sigalgs",
     "SSL_CTX_set_info_callback",
     "SSL_CTX_build_cert_chain",
     "SSL_read", "SSL_write",
     "SSL_set_options", "SSL_clear_options", "SSL_get_options",
+    "SSL_set1_client_sigalgs_list", "SSL_set1_client_sigalgs",
+    "SSL_set1_sigalgs_list", "SSL_set1_sigalgs",
     "SSL_set_mtu",
     "SSL_state_string_long", "SSL_alert_type_string_long", "SSL_alert_desc_string_long",
     "SSL_CTX_set_cookie_cb",
@@ -750,6 +758,22 @@ def SSL_CTX_clear_options(ctx, options):
 def SSL_CTX_get_options(ctx):
     return _SSL_CTX_ctrl(ctx, SSL_CTRL_OPTIONS, 0, None)
 
+def SSL_CTX_set1_client_sigalgs(ctx, slist, slistlen):
+    _slist = (c_int * len(slist))(*slist)
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CLIENT_SIGALGS, len(_slist), _slist)
+
+def SSL_CTX_set1_client_sigalgs_list(ctx, s):
+    _s = cast(s, POINTER(c_char))
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CLIENT_SIGALGS_LIST, 0, _s)
+
+def SSL_CTX_set1_sigalgs(ctx, slist, slistlen):
+    _slist = (c_int * len(slist))(*slist)
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SIGALGS, len(_slist), _slist)
+
+def SSL_CTX_set1_sigalgs_list(ctx, s):
+    _s = cast(s, POINTER(c_char))
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SIGALGS_LIST, 0, _s)
+
 _rvoid_voidp_int_int = CFUNCTYPE(None, c_void_p, c_int, c_int)
 
 _info_callback = dict()
@@ -883,6 +907,22 @@ def SSL_clear_options(ssl, op):
 
 def SSL_get_options(ssl):
     return _SSL_ctrl(ssl, SSL_CTRL_OPTIONS, 0, None)
+
+def SSL_set1_client_sigalgs(ssl, slist, slistlen):
+    _slist = (c_int * len(slist))(*slist)
+    return _SSL_ctrl(ssl, SSL_CTRL_SET_CLIENT_SIGALGS, len(_slist), _slist)
+
+def SSL_set1_client_sigalgs_list(ssl, s):
+    _s = cast(s, POINTER(c_char))
+    return _SSL_ctrl(ssl, SSL_CTRL_SET_CLIENT_SIGALGS_LIST, 0, _s)
+
+def SSL_set1_sigalgs(ssl, slist, slistlen):
+    _slist = (c_int * len(slist))(*slist)
+    return _SSL_ctrl(ssl, SSL_CTRL_SET_SIGALGS, len(_slist), _slist)
+
+def SSL_set1_sigalgs_list(ssl, s):
+    _s = cast(s, POINTER(c_char))
+    return _SSL_ctrl(ssl, SSL_CTRL_SET_SIGALGS_LIST, 0, _s)
 
 def SSL_set_mtu(ssl, mtu):
     return _SSL_ctrl(ssl, SSL_CTRL_SET_MTU, mtu, None)
