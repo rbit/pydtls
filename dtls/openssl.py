@@ -83,6 +83,7 @@ else:
 BIO_NOCLOSE = 0x00
 BIO_CLOSE = 0x01
 SSLEAY_VERSION = 0
+SSL_OP_NO_QUERY_MTU = 0x00001000
 SSL_OP_NO_COMPRESSION = 0x00020000
 SSL_VERIFY_NONE = 0x00
 SSL_VERIFY_PEER = 0x01
@@ -130,6 +131,7 @@ SSL_CB_HANDSHAKE_DONE = 0x20
 #
 # Integer constants - internal
 #
+SSL_CTRL_SET_MTU = 17
 SSL_CTRL_OPTIONS = 32
 SSL_CTRL_SET_READ_AHEAD = 41
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
@@ -144,6 +146,7 @@ BIO_C_SET_NBIO = 102
 DTLS_CTRL_GET_TIMEOUT = 73
 DTLS_CTRL_HANDLE_TIMEOUT = 74
 DTLS_CTRL_LISTEN = 75
+DTLS_CTRL_SET_LINK_MTU = 120
 
 X509_NAME_MAXLEN = 256
 GETS_MAXLEN = 2048
@@ -504,7 +507,7 @@ __all__ = [
     # Constants
     "BIO_NOCLOSE", "BIO_CLOSE",
     "SSLEAY_VERSION",
-    "SSL_OP_NO_COMPRESSION",
+    "SSL_OP_NO_QUERY_MTU", "SSL_OP_NO_COMPRESSION",
     "SSL_VERIFY_NONE", "SSL_VERIFY_PEER",
     "SSL_VERIFY_FAIL_IF_NO_PEER_CERT", "SSL_VERIFY_CLIENT_ONCE",
     "SSL_SESS_CACHE_OFF", "SSL_SESS_CACHE_CLIENT",
@@ -524,6 +527,7 @@ __all__ = [
     "CRYPTO_set_locking_callback",
     "DTLSv1_get_timeout", "DTLSv1_handle_timeout",
     "DTLSv1_listen",
+    "DTLS_set_link_mtu",
     "BIO_gets", "BIO_read", "BIO_get_mem_data",
     "BIO_dgram_set_connected",
     "BIO_dgram_get_peer", "BIO_dgram_set_peer",
@@ -532,6 +536,8 @@ __all__ = [
     "SSL_CTX_set_options",
     "SSL_CTX_set_info_callback",
     "SSL_read", "SSL_write",
+    "SSL_set_options",
+    "SSL_set_mtu",
     "SSL_state_string_long", "SSL_alert_type_string_long", "SSL_alert_desc_string_long",
     "SSL_CTX_set_cookie_cb",
     "OBJ_obj2txt", "decode_ASN1_STRING", "ASN1_TIME_print",
@@ -819,6 +825,9 @@ def DTLSv1_listen(ssl):
     errcheck_ord(ret, _SSL_ctrl, (ssl, DTLS_CTRL_LISTEN, 0, byref(su)))
     return addr_tuple_from_sockaddr_u(su)
 
+def DTLS_set_link_mtu(ssl, mtu):
+    return _SSL_ctrl(ssl, DTLS_CTRL_SET_LINK_MTU, mtu, None)
+
 def SSL_read(ssl, length, buffer):
     if buffer:
         length = min(length, len(buffer))
@@ -840,6 +849,12 @@ def SSL_write(ssl, data):
     else:
         str_data = str(data)
     return _SSL_write(ssl, str_data, len(str_data))
+
+def SSL_set_options(ssl, op):
+    return _SSL_ctrl(ssl, SSL_CTRL_OPTIONS, op, None)
+
+def SSL_set_mtu(ssl, mtu):
+    return _SSL_ctrl(ssl, SSL_CTRL_SET_MTU, mtu, None)
 
 def SSL_state_string_long(ssl):
     try:

@@ -1,5 +1,13 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Updating openSSL libs to v1.0.2l-dev
+
+	* dtls/openssl.py: Added mtu-functions SSL_set_mtu() and DTLS_set_link_mtu()
+	* dtls/prebuilt/win32-*: Updated libs for x86 and x86_64 to version 1.0.2l-dev
+	* dtls/sslconnection.py: mtu size set hardcoded to 1500 - otherwise the windows implementation has problems
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added interface for SSL_CTX_set_info_callback()
 
 	* dtls/openssl.py:
