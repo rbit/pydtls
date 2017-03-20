@@ -538,6 +538,8 @@ class ThreadedEchoServer(threading.Thread):
                     handler.start()
             except socket.timeout:
                 pass
+            except ssl.SSLError:
+                pass
             except KeyboardInterrupt:
                 self.stop()
         self.sock.close()

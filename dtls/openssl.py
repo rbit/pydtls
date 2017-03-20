@@ -98,6 +98,7 @@ SSL_SESS_CACHE_NO_INTERNAL_LOOKUP = 0x0100
 SSL_SESS_CACHE_NO_INTERNAL_STORE = 0x0200
 SSL_SESS_CACHE_NO_INTERNAL = \
   SSL_SESS_CACHE_NO_INTERNAL_LOOKUP | SSL_SESS_CACHE_NO_INTERNAL_STORE
+SSL_BUILD_CHAIN_FLAG_NONE = 0x0
 SSL_BUILD_CHAIN_FLAG_UNTRUSTED = 0x1
 SSL_BUILD_CHAIN_FLAG_NO_ROOT = 0x2
 SSL_BUILD_CHAIN_FLAG_CHECK = 0x4
@@ -351,6 +352,13 @@ class GENERAL_NAMES(STACK):
         super(GENERAL_NAMES, self).__init__(value)
 
 
+class STACK_OF_X509(STACK):
+    stack_element_type = X509
+
+    def __init__(self, value):
+        super(STACK_OF_X509, self).__init__(value)
+
+
 class X509_NAME_ENTRY(Structure):
     _fields_ = [("object", c_void_p),
                 ("value", c_void_p),
@@ -597,8 +605,8 @@ __all__ = [
     "SSL_CB_ACCEPT_LOOP", "SSL_CB_ACCEPT_EXIT",
     "SSL_CB_CONNECT_LOOP", "SSL_CB_CONNECT_EXIT",
     "SSL_CB_HANDSHAKE_START", "SSL_CB_HANDSHAKE_DONE",
-    "SSL_BUILD_CHAIN_FLAG_UNTRUSTED", "SSL_BUILD_CHAIN_FLAG_NO_ROOT", "SSL_BUILD_CHAIN_FLAG_CHECK",
-    "SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR", "SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR",
+    "SSL_BUILD_CHAIN_FLAG_NONE", "SSL_BUILD_CHAIN_FLAG_UNTRUSTED", "SSL_BUILD_CHAIN_FLAG_NO_ROOT",
+    "SSL_BUILD_CHAIN_FLAG_CHECK", "SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR", "SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR",
     "SSL_FILE_TYPE_PEM",
     "GEN_DIRNAME", "NID_subject_alt_name",
     "CRYPTO_LOCK",
@@ -628,6 +636,7 @@ __all__ = [
     "SSL_set1_curves", "SSL_set1_curves_list",
     "SSL_set_mtu",
     "SSL_state_string_long", "SSL_alert_type_string_long", "SSL_alert_desc_string_long",
+    "SSL_get_peer_cert_chain",
     "SSL_CTX_set_cookie_cb",
     "OBJ_obj2txt", "decode_ASN1_STRING", "ASN1_TIME_print",
     "OBJ_nid2sn",
@@ -736,6 +745,8 @@ map(lambda x: _make_function(*x), (
      ((c_int, "ret"), (SSL, "ssl"))),
     ("SSL_get_peer_certificate", libssl,
      ((X509, "ret"), (SSL, "ssl"))),
+    ("SSL_get_peer_cert_chain", libssl,
+     ((STACK_OF_X509, "ret"), (SSL, "ssl")), False),
     ("SSL_read", libssl,
      ((c_int, "ret"), (SSL, "ssl"), (c_void_p, "buf"), (c_int, "num")), False),
     ("SSL_write", libssl,
@@ -1155,3 +1166,13 @@ def i2d_X509(x509):
     bio = _BIO(BIO_new(BIO_s_mem()))
     _i2d_X509_bio(bio.value, x509)
     return BIO_get_mem_data(bio.value)
+
+def SSL_get_peer_cert_chain(ssl):
+    stack = _SSL_get_peer_cert_chain(ssl)
+    num = sk_num(stack)
+    certs = []
+    if num:
+        # why not use sk_value(): because it doesn't cast correct in this case?!
+        # certs = [(sk_value(stack, i)) for i in xrange(num)]
+        certs = [X509(_sk_value(stack, i)) for i in xrange(num)]
+    return stack, num, certs

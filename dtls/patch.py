@@ -204,6 +204,12 @@ def _SSLSocket_init(self, sock=None, keyfile=None, certfile=None,
     self.get_timeout = MethodType(_SSLSocket_get_timeout, proxy(self))
     self.handle_timeout = MethodType(_SSLSocket_handle_timeout, proxy(self))
 
+    # Extra
+    self.getpeercertchain = MethodType(_getpeercertchain, proxy(self))
+
+def _getpeercertchain(self, binary_form=False):
+    return self._sslobj.getpeercertchain(binary_form)
+
 def _SSLSocket_listen(self, ignored):
     if self._connected:
         raise ValueError("attempt to listen on connected SSLSocket!")

@@ -1,5 +1,25 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added more on error evaluation and a method to get the peer certificate chain
+
+	* dtls/__init__.py: import error codes from err.py as error_codes for external access
+	* dtls/err.py: Added errors for ERR_WRONG_SSL_VERSION, ERR_CERTIFICATE_VERIFY_FAILED, ERR_NO_SHARED_CIPHER and ERR_SSL_HANDSHAKE_FAILURE
+	* dtls/openssl.py:
+		- Added constant SSL_BUILD_CHAIN_FLAG_NONE for SSL_CTX_build_cert_chain()
+		- Added method SSL_get_peer_cert_chain()
+	* dtls/patch.py: Added getpeercertchain() as method to ssl.SSLSocket()
+	* dtls/sslconnection.py:
+		- Bugfix SSLContext.set_ecdh_curve() returns 1 for success and 0 for failure
+		- SSLContext.build_cert_chain() changed default flags to SSL_BUILD_CHAIN_FLAG_NONE
+		- In SSLConnection() the mtu size gets only set if no user config function is given
+		- SSLConnection.listen() raises an exception for ERR_WRONG_VERSION_NUMBER, ERR_COOKIE_MISMATCH, ERR_NO_SHARED_CIPHER and all other unknown errors
+		- SSLConnection.read() and write() now can also raise ERR_PORT_UNREACHABLE
+		- If SSLConnection.write() successfully writes bytes to the peer, then the handshake is assumed to be okay
+		- Added method SSLConnection.getpeercertchain()
+	* dtls/test/unit.py: ThreadedEchoServer() with an extra exception branch for the newly raised exceptions in SSLConnection.listen()
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added certificate creation using ECDSA
 
 	* dtls/test/makecerts_ec.bat: creates ca-cert_ec.pem, keycert_ec.pem and server-cert_ec.pem

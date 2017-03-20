@@ -52,10 +52,10 @@ from weakref import proxy
 from err import openssl_error, InvalidSocketError
 from err import raise_ssl_error
 from err import SSL_ERROR_WANT_READ, SSL_ERROR_SYSCALL
-from err import ERR_WRONG_VERSION_NUMBER, ERR_COOKIE_MISMATCH, ERR_NO_CERTS
+from err import ERR_WRONG_VERSION_NUMBER, ERR_COOKIE_MISMATCH, ERR_NO_SHARED_CIPHER
 from err import ERR_NO_CIPHER, ERR_HANDSHAKE_TIMEOUT, ERR_PORT_UNREACHABLE
 from err import ERR_READ_TIMEOUT, ERR_WRITE_TIMEOUT
-from err import ERR_BOTH_KEY_CERT_FILES, ERR_BOTH_KEY_CERT_FILES_SVR
+from err import ERR_BOTH_KEY_CERT_FILES, ERR_BOTH_KEY_CERT_FILES_SVR, ERR_NO_CERTS
 from x509 import _X509, decode_cert
 from tlock import tlock_init
 from openssl import *
@@ -235,7 +235,8 @@ class SSLContext(object):
         return sorted([x.name for x in curves] if bAsName else [x.nid for x in curves])
 
     def set_ecdh_curve(self, curve_name=None):
-        u'''
+        u''' Select a curve to use for ECDH(E) key exchange or set it to auto mode
+
         Used for server only!
 
         s.a. openssl.exe ecparam -list_curves
@@ -246,13 +247,13 @@ class SSLContext(object):
         if curve_name:
             retVal = SSL_CTX_set_ecdh_auto(self._ctx, 0)
             avail_curves = get_elliptic_curves()
-            self._ctx.key = [curve for curve in avail_curves if curve.name == curve_name][0].to_EC_KEY()
-            retVal = SSL_CTX_set_tmp_ecdh(self._ctx, self._ctx.key)
+            key = [curve for curve in avail_curves if curve.name == curve_name][0].to_EC_KEY()
+            retVal &= SSL_CTX_set_tmp_ecdh(self._ctx, key)
         else:
             retVal = SSL_CTX_set_ecdh_auto(self._ctx, 1)
         return retVal
 
-    def build_cert_chain(self, flags=SSL_BUILD_CHAIN_FLAG_NO_ROOT):
+    def build_cert_chain(self, flags=SSL_BUILD_CHAIN_FLAG_NONE):
         u'''
         Used for server side only!
 
@@ -557,11 +558,11 @@ class SSLConnection(object):
             else:
                 post_init = self._init_client(peer_address)
 
-        SSL_set_options(self._ssl.value, SSL_OP_NO_QUERY_MTU)
-        DTLS_set_link_mtu(self._ssl.value, 1500)
-
         if self._user_config_ssl:
             self._user_config_ssl(self._intf_ssl)
+        else:
+            SSL_set_options(self._ssl.value, SSL_OP_NO_QUERY_MTU)
+            DTLS_set_link_mtu(self._ssl.value, 1500)
         SSL_set_bio(self._ssl.value, self._rbio.value, self._wbio.value)
         self._rbio.disown()
         self._wbio.disown()
@@ -638,10 +639,13 @@ class SSLConnection(object):
                 return
             elif err.errqueue and err.errqueue[0][0] == ERR_WRONG_VERSION_NUMBER:
                 _logger.debug("Wrong version number; aborting handshake")
-                return
+                raise
             elif err.errqueue and err.errqueue[0][0] == ERR_COOKIE_MISMATCH:
                 _logger.debug("Mismatching cookie received; aborting handshake")
-                return
+                raise
+            elif err.errqueue and err.errqueue[0][0] == ERR_NO_SHARED_CIPHER:
+                _logger.debug("No shared cipher; aborting handshake")
+                raise
             _logger.exception("Unexpected error in DTLSv1_listen")
             raise
         finally:
@@ -736,8 +740,13 @@ class SSLConnection(object):
         string containing read bytes
         """
 
-        return self._wrap_socket_library_call(
-            lambda: SSL_read(self._ssl.value, len, buffer), ERR_READ_TIMEOUT)
+        try:
+            return self._wrap_socket_library_call(
+                lambda: SSL_read(self._ssl.value, len, buffer), ERR_READ_TIMEOUT)
+        except openssl_error() as err:
+            if err.ssl_error == SSL_ERROR_SYSCALL and err.result == -1:
+                raise_ssl_error(ERR_PORT_UNREACHABLE, err)
+            raise
 
     def write(self, data):
         """Write data to connection
@@ -751,8 +760,16 @@ class SSLConnection(object):
         number of bytes actually transmitted
         """
 
-        return self._wrap_socket_library_call(
-            lambda: SSL_write(self._ssl.value, data), ERR_WRITE_TIMEOUT)
+        try:
+            ret = self._wrap_socket_library_call(
+                lambda: SSL_write(self._ssl.value, data), ERR_WRITE_TIMEOUT)
+        except openssl_error() as err:
+            if err.ssl_error == SSL_ERROR_SYSCALL and err.result == -1:
+                raise_ssl_error(ERR_PORT_UNREACHABLE, err)
+            raise
+        if ret:
+            self._handshake_done = True
+        return ret
 
     def shutdown(self):
         """Shut down the DTLS connection
@@ -815,6 +832,21 @@ class SSLConnection(object):
         return decode_cert(peer_cert)
 
     peer_certificate = getpeercert  # compatibility with _ssl call interface
+
+    def getpeercertchain(self, binary_form=False):
+        try:
+            stack, num, certs = SSL_get_peer_cert_chain(self._ssl.value)
+        except openssl_error():
+            return
+
+        peer_cert_chain = [_Rsrc(cert) for cert in certs]
+        ret = []
+        if binary_form:
+            ret = [i2d_X509(x.value) for x in peer_cert_chain]
+        elif len(peer_cert_chain):
+            ret = [decode_cert(x) for x in peer_cert_chain]
+
+        return ret
 
     def cipher(self):
         """Retrieve information about the current cipher

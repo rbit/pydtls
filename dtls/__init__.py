@@ -61,3 +61,4 @@ _prep_bins()  # prepare before module imports
 from patch import do_patch
 from sslconnection import SSLConnection
 from demux import force_routing_demux, reset_default_demux
+import err as error_codes
