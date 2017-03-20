@@ -1,5 +1,13 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added methods *_clear_options() and *_get_options()
+
+	* dtls/openssl.py:
+		- Added SSL_CTX_clear_options() and SSL_CTX_get_options()
+		- Added SSL_clear_options() and SSL_get_options()
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added new methods for DTLSv1.2
 
 	* dtls/err.py: Added error code ERR_WRONG_VERSION_NUMBER

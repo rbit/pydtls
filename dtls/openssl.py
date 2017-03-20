@@ -135,6 +135,7 @@ SSL_CTRL_SET_MTU = 17
 SSL_CTRL_OPTIONS = 32
 SSL_CTRL_SET_READ_AHEAD = 41
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
+SSL_CTRL_CLEAR_OPTIONS = 77
 
 BIO_CTRL_INFO = 3
 BIO_CTRL_DGRAM_SET_CONNECTED = 32
@@ -533,10 +534,10 @@ __all__ = [
     "BIO_dgram_get_peer", "BIO_dgram_set_peer",
     "BIO_set_nbio",
     "SSL_CTX_set_session_cache_mode", "SSL_CTX_set_read_ahead",
-    "SSL_CTX_set_options",
+    "SSL_CTX_set_options", "SSL_CTX_clear_options", "SSL_CTX_get_options",
     "SSL_CTX_set_info_callback",
     "SSL_read", "SSL_write",
-    "SSL_set_options",
+    "SSL_set_options", "SSL_clear_options", "SSL_get_options",
     "SSL_set_mtu",
     "SSL_state_string_long", "SSL_alert_type_string_long", "SSL_alert_desc_string_long",
     "SSL_CTX_set_cookie_cb",
@@ -734,6 +735,12 @@ def SSL_CTX_set_options(ctx, options):
     # Returns the new option bitmaks after adding the given options
     return _SSL_CTX_ctrl(ctx, SSL_CTRL_OPTIONS, options, None)
 
+def SSL_CTX_clear_options(ctx, options):
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_CLEAR_OPTIONS, options, None)
+
+def SSL_CTX_get_options(ctx):
+    return _SSL_CTX_ctrl(ctx, SSL_CTRL_OPTIONS, 0, None)
+
 _rvoid_voidp_int_int = CFUNCTYPE(None, c_void_p, c_int, c_int)
 
 _info_callback = dict()
@@ -858,6 +865,12 @@ def SSL_write(ssl, data):
 
 def SSL_set_options(ssl, op):
     return _SSL_ctrl(ssl, SSL_CTRL_OPTIONS, op, None)
+
+def SSL_clear_options(ssl, op):
+    return _SSL_ctrl(ssl, SSL_CTRL_CLEAR_OPTIONS, op, None)
+
+def SSL_get_options(ssl):
+    return _SSL_ctrl(ssl, SSL_CTRL_OPTIONS, 0, None)
 
 def SSL_set_mtu(ssl, mtu):
     return _SSL_ctrl(ssl, SSL_CTRL_SET_MTU, mtu, None)
