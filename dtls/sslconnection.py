@@ -84,6 +84,58 @@ DTLS_OPENSSL_VERSION_INFO = (
     DTLS_OPENSSL_VERSION_NUMBER       & 0xF)   # status
 
 
+def _ssl_logging_cb(conn, where, return_code):
+    _state = where & ~SSL_ST_MASK
+    state = "SSL"
+    if _state & SSL_ST_INIT == SSL_ST_INIT:
+        if _state & SSL_ST_RENEGOTIATE == SSL_ST_RENEGOTIATE:
+            state += "_renew"
+        else:
+            state += "_init"
+    elif _state & SSL_ST_CONNECT:
+        state += "_connect"
+    elif _state & SSL_ST_ACCEPT:
+        state += "_accept"
+    elif _state == 0:
+        if where & SSL_CB_HANDSHAKE_START:
+            state += "_handshake_start"
+        elif where & SSL_CB_HANDSHAKE_DONE:
+            state += "_handshake_done"
+
+    if where & SSL_CB_LOOP:
+        state += '_loop'
+        _logger.debug("%s:%s:%d" % (state,
+                                    SSL_state_string_long(conn),
+                                    return_code))
+
+    elif where & SSL_CB_ALERT:
+        state += '_alert'
+        state += "_read" if where & SSL_CB_READ else "_write"
+        _logger.debug("%s:%s:%s" % (state,
+                                    SSL_alert_type_string_long(return_code),
+                                    SSL_alert_desc_string_long(return_code)))
+
+    elif where & SSL_CB_EXIT:
+        state += '_exit'
+        if return_code == 0:
+            _logger.debug("%s:%s:%d(failed)" % (state,
+                                                SSL_state_string_long(conn),
+                                                return_code))
+        elif return_code < 0:
+            _logger.debug("%s:%s:%d(error)" % (state,
+                                               SSL_state_string_long(conn),
+                                               return_code))
+        else:
+            _logger.debug("%s:%s:%d" % (state,
+                                        SSL_state_string_long(conn),
+                                        return_code))
+
+    else:
+        _logger.debug("%s:%s:%d" % (state,
+                                    SSL_state_string_long(conn),
+                                    return_code))
+
+
 class _CTX(_Rsrc):
     """SSL_CTX wrapper"""
     def __init__(self, value):
@@ -209,6 +261,7 @@ class SSLConnection(object):
                 SSL_CTX_set_cipher_list(self._ctx.value, self._ciphers)
             except openssl_error() as err:
                 raise_ssl_error(ERR_NO_CIPHER, err)
+        SSL_CTX_set_info_callback(self._ctx.value, _ssl_logging_cb)
 
     def _copy_server(self):
         source = self._sock

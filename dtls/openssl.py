@@ -102,6 +102,31 @@ GEN_DIRNAME = 4
 NID_subject_alt_name = 85
 CRYPTO_LOCK = 1
 
+SSL_ST_MASK = 0x0FFF
+SSL_ST_CONNECT = 0x1000
+SSL_ST_ACCEPT = 0x2000
+SSL_ST_INIT = (SSL_ST_CONNECT | SSL_ST_ACCEPT)
+SSL_ST_BEFORE = 0x4000
+
+SSL_ST_OK = 0x03
+SSL_ST_RENEGOTIATE = (0x04 | SSL_ST_INIT)
+SSL_ST_ERR = 0x05
+
+SSL_CB_LOOP = 0x01
+SSL_CB_EXIT = 0x02
+SSL_CB_READ = 0x04
+SSL_CB_WRITE = 0x08
+
+SSL_CB_ALERT = 0x4000
+SSL_CB_READ_ALERT = (SSL_CB_ALERT | SSL_CB_READ)
+SSL_CB_WRITE_ALERT = (SSL_CB_ALERT | SSL_CB_WRITE)
+SSL_CB_ACCEPT_LOOP = (SSL_ST_ACCEPT | SSL_CB_LOOP)
+SSL_CB_ACCEPT_EXIT = (SSL_ST_ACCEPT | SSL_CB_EXIT)
+SSL_CB_CONNECT_LOOP = (SSL_ST_CONNECT | SSL_CB_LOOP)
+SSL_CB_CONNECT_EXIT = (SSL_ST_CONNECT | SSL_CB_EXIT)
+SSL_CB_HANDSHAKE_START = 0x10
+SSL_CB_HANDSHAKE_DONE = 0x20
+
 #
 # Integer constants - internal
 #
@@ -486,6 +511,12 @@ __all__ = [
     "SSL_SESS_CACHE_SERVER", "SSL_SESS_CACHE_BOTH",
     "SSL_SESS_CACHE_NO_AUTO_CLEAR", "SSL_SESS_CACHE_NO_INTERNAL_LOOKUP",
     "SSL_SESS_CACHE_NO_INTERNAL_STORE", "SSL_SESS_CACHE_NO_INTERNAL",
+    "SSL_ST_MASK", "SSL_ST_CONNECT", "SSL_ST_ACCEPT", "SSL_ST_INIT", "SSL_ST_BEFORE", "SSL_ST_OK",
+    "SSL_ST_RENEGOTIATE", "SSL_ST_ERR", "SSL_CB_LOOP", "SSL_CB_EXIT", "SSL_CB_READ", "SSL_CB_WRITE",
+    "SSL_CB_ALERT", "SSL_CB_READ_ALERT", "SSL_CB_WRITE_ALERT",
+    "SSL_CB_ACCEPT_LOOP", "SSL_CB_ACCEPT_EXIT",
+    "SSL_CB_CONNECT_LOOP", "SSL_CB_CONNECT_EXIT",
+    "SSL_CB_HANDSHAKE_START", "SSL_CB_HANDSHAKE_DONE",
     "SSL_FILE_TYPE_PEM",
     "GEN_DIRNAME", "NID_subject_alt_name",
     "CRYPTO_LOCK",
@@ -499,7 +530,9 @@ __all__ = [
     "BIO_set_nbio",
     "SSL_CTX_set_session_cache_mode", "SSL_CTX_set_read_ahead",
     "SSL_CTX_set_options",
+    "SSL_CTX_set_info_callback",
     "SSL_read", "SSL_write",
+    "SSL_state_string_long", "SSL_alert_type_string_long", "SSL_alert_desc_string_long",
     "SSL_CTX_set_cookie_cb",
     "OBJ_obj2txt", "decode_ASN1_STRING", "ASN1_TIME_print",
     "X509_get_notAfter",
@@ -536,6 +569,8 @@ map(lambda x: _make_function(*x), (
      ((None, "ret"), (SSLCTX, "ctx"), (c_void_p, "app_gen_cookie_cb")), False),
     ("SSL_CTX_set_cookie_verify_cb", libssl,
      ((None, "ret"), (SSLCTX, "ctx"), (c_void_p, "app_verify_cookie_cb")), False),
+    ("SSL_CTX_set_info_callback", libssl,
+     ((None, "ret"), (SSLCTX, "ctx"), (c_void_p, "app_info_cb")), False),
     ("SSL_new", libssl,
      ((SSL, "ret"), (SSLCTX, "ctx"))),
     ("SSL_free", libssl,
@@ -568,6 +603,12 @@ map(lambda x: _make_function(*x), (
      ((None, "ret"), (c_ulong, "e"), (c_char_p, "buf"), (c_size_t, "len")), False),
     ("SSL_get_error", libssl,
      ((c_int, "ret"), (SSL, "ssl"), (c_int, "ret")), False, None),
+    ("SSL_state_string_long", libssl,
+     ((c_char_p, "ret"), (SSL, "ssl")), False),
+    ("SSL_alert_type_string_long", libssl,
+     ((c_char_p, "ret"), (c_int, "value")), False),
+    ("SSL_alert_desc_string_long", libssl,
+     ((c_char_p, "ret"), (c_int, "value")), False),
     ("SSL_CTX_set_cipher_list", libssl,
      ((c_int, "ret"), (SSLCTX, "ctx"), (c_char_p, "str"))),
     ("SSL_CTX_use_certificate_file", libssl,
@@ -681,6 +722,28 @@ def SSL_CTX_set_options(ctx, options):
     # Returns the new option bitmaks after adding the given options
     return _SSL_CTX_ctrl(ctx, SSL_CTRL_OPTIONS, options, None)
 
+_rvoid_voidp_int_int = CFUNCTYPE(None, c_void_p, c_int, c_int)
+
+_info_callback = dict()
+
+def SSL_CTX_set_info_callback(ctx, app_info_cb):
+    """
+    Set the info callback
+
+    :param callback: The Python callback to use
+    :return: None
+    """
+    def py_info_callback(ssl, where, ret):
+        try:
+            app_info_cb(SSL(ssl), where, ret)
+        except:
+            pass
+        return
+
+    global _info_callback
+    _info_callback[ctx] = _rvoid_voidp_int_int(py_info_callback)
+    _SSL_CTX_set_info_callback(ctx, _info_callback[ctx])
+
 _rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte),
                                      POINTER(c_uint))
 _rint_voidp_ubytep_uint = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte), c_uint)
@@ -777,6 +840,27 @@ def SSL_write(ssl, data):
     else:
         str_data = str(data)
     return _SSL_write(ssl, str_data, len(str_data))
+
+def SSL_state_string_long(ssl):
+    try:
+        ret = _SSL_state_string_long(ssl)
+    except:
+        pass
+    return ret
+
+def SSL_alert_type_string_long(value):
+    try:
+        ret = _SSL_alert_type_string_long(value)
+    except:
+        pass
+    return ret
+
+def SSL_alert_desc_string_long(value):
+    try:
+        ret = _SSL_alert_desc_string_long(value)
+    except:
+        pass
+    return ret
 
 def OBJ_obj2txt(asn1_object, no_name):
     buf = create_string_buffer(X509_NAME_MAXLEN)
