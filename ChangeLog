@@ -1,5 +1,13 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added a wrapper for a DTLS-Socket either as client or server - including unit tests
+
+	* dtls/__init__.py: Import SSLContext() and SSL() for external use
+	* dtls/wrapper.py: Added class DtlsSocket() to be used as client or server
+	* dtls/test/unit_wrapper.py: unit test for DtlsSocket()
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added more on error evaluation and a method to get the peer certificate chain
 
 	* dtls/__init__.py: import error codes from err.py as error_codes for external access
