@@ -1,9 +1,16 @@
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
+	Added certificate creation using ECDSA
+
+	* dtls/test/makecerts_ec.bat: creates ca-cert_ec.pem, keycert_ec.pem and server-cert_ec.pem
+	* dtls/test/openssl_ca.cnf and openssl_server.cnf: Added HOME to be able to use the conf file under windows
+
+2017-03-17  Björn Freise  <mcfreis@gmx.net>
+
 	Added an interface in SSLConnection() to access SSLContext() and SSL() for manipulating settings during creation
 
 	* dtls/openssl.py:
-		- Added utility fucntions EC_curve_nist2nid() and EC_curve_nid2nist()
+		- Added utility functions EC_curve_nist2nid() and EC_curve_nid2nist()
 	* dtls/patch.py:
 		- Extended wrap_socket() arguments with callbacks for user config functions of ssl context and ssl session values
 		- Extended SSLSocket() arguments with callbacks for user config functions of ssl context and ssl session values
