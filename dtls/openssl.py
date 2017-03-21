@@ -84,7 +84,6 @@ BIO_NOCLOSE = 0x00
 BIO_CLOSE = 0x01
 SSLEAY_VERSION = 0
 SSL_OP_NO_COMPRESSION = 0x00020000
-SSL_OP_NO_QUERY_MTU = 0x00001000
 SSL_VERIFY_NONE = 0x00
 SSL_VERIFY_PEER = 0x01
 SSL_VERIFY_FAIL_IF_NO_PEER_CERT = 0x02
@@ -98,38 +97,10 @@ SSL_SESS_CACHE_NO_INTERNAL_LOOKUP = 0x0100
 SSL_SESS_CACHE_NO_INTERNAL_STORE = 0x0200
 SSL_SESS_CACHE_NO_INTERNAL = \
   SSL_SESS_CACHE_NO_INTERNAL_LOOKUP | SSL_SESS_CACHE_NO_INTERNAL_STORE
-SSL_BUILD_CHAIN_FLAG_UNTRUSTED = 0x1
-SSL_BUILD_CHAIN_FLAG_NO_ROOT = 0x2
-SSL_BUILD_CHAIN_FLAG_CHECK = 0x4
-SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR = 0x8
-SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR = 0x10
 SSL_FILE_TYPE_PEM = 1
 GEN_DIRNAME = 4
 NID_subject_alt_name = 85
 CRYPTO_LOCK = 1
-
-SSL_ST_MASK = 0x0FFF
-SSL_ST_CONNECT = 0x1000
-SSL_ST_ACCEPT = 0x2000
-SSL_ST_INIT = (SSL_ST_CONNECT | SSL_ST_ACCEPT)
-SSL_ST_BEFORE = 0x4000
-SSL_ST_OK = 0x03
-SSL_ST_RENEGOTIATE = (0x04 | SSL_ST_INIT)
-SSL_ST_ERR = 0x05
-
-SSL_CB_LOOP = 0x01
-SSL_CB_EXIT = 0x02
-SSL_CB_READ = 0x04
-SSL_CB_WRITE = 0x08
-SSL_CB_ALERT = 0x4000
-SSL_CB_READ_ALERT = (SSL_CB_ALERT | SSL_CB_READ)
-SSL_CB_WRITE_ALERT = (SSL_CB_ALERT | SSL_CB_WRITE)
-SSL_CB_ACCEPT_LOOP = (SSL_ST_ACCEPT | SSL_CB_LOOP)
-SSL_CB_ACCEPT_EXIT = (SSL_ST_ACCEPT | SSL_CB_EXIT)
-SSL_CB_CONNECT_LOOP = (SSL_ST_CONNECT | SSL_CB_LOOP)
-SSL_CB_CONNECT_EXIT = (SSL_ST_CONNECT | SSL_CB_EXIT)
-SSL_CB_HANDSHAKE_START = 0x10
-SSL_CB_HANDSHAKE_DONE = 0x20
 
 #
 # Integer constants - internal
@@ -137,19 +108,6 @@ SSL_CB_HANDSHAKE_DONE = 0x20
 SSL_CTRL_SET_SESS_CACHE_MODE = 44
 SSL_CTRL_SET_READ_AHEAD = 41
 SSL_CTRL_OPTIONS = 32
-SSL_CTRL_CLEAR_OPTIONS = 77
-SSL_CTRL_SET_ECDH_AUTO = 94
-SSL_CTRL_BUILD_CERT_CHAIN = 105
-SSL_CTRL_SET_MTU = 17
-SSL_CTRL_GET_CURVES = 90
-SSL_CTRL_SET_CURVES = 91
-SSL_CTRL_SET_CURVES_LIST = 92
-SSL_CTRL_GET_SHARED_CURVE = 93
-SSL_CTRL_SET_SIGALGS  = 97
-SSL_CTRL_SET_SIGALGS_LIST = 98
-SSL_CTRL_SET_CLIENT_SIGALGS = 101
-SSL_CTRL_SET_CLIENT_SIGALGS_LIST = 102
-SSL_CTRL_SET_TMP_ECDH = 4
 BIO_CTRL_INFO = 3
 BIO_CTRL_DGRAM_SET_CONNECTED = 32
 BIO_CTRL_DGRAM_GET_PEER = 46
@@ -160,53 +118,6 @@ DTLS_CTRL_HANDLE_TIMEOUT = 74
 DTLS_CTRL_LISTEN = 75
 X509_NAME_MAXLEN = 256
 GETS_MAXLEN = 2048
-
-
-class _EllipticCurve(object):
-    _curves = None
-
-    @classmethod
-    def _load_elliptic_curves(cls, lib):
-        num_curves = lib.EC_get_builtin_curves(0, 0)
-        if num_curves > 0:
-            builtin_curves = create_string_buffer(sizeof(EC_builtin_curve) * num_curves)
-            lib.EC_get_builtin_curves(builtin_curves, num_curves)
-            return set(cls.from_nid(lib, c.nid) for c in cast(builtin_curves, POINTER(EC_builtin_curve))[:num_curves])
-        return set()
-
-    @classmethod
-    def _get_elliptic_curves(cls, lib):
-        if cls._curves is None:
-            cls._curves = cls._load_elliptic_curves(lib)
-        return cls._curves
-
-    @classmethod
-    def from_nid(cls, lib, nid):
-        return cls(lib, nid, cast(lib.OBJ_nid2sn(nid), c_char_p).value.decode("ascii"))
-
-    def __init__(self, lib, nid, name):
-        self._lib = lib
-        self._nid = nid
-        self.name = name
-
-    def __repr__(self):
-        return "<Curve %r>" % (self.name,)
-
-    def as_EC_KEY(self):
-        key = self._lib.EC_KEY_new_by_curve_name(self._nid)
-        return key
-
-
-def get_elliptic_curves():
-    return _EllipticCurve._get_elliptic_curves(libcrypto)
-
-
-def get_elliptic_curve(name):
-    for curve in get_elliptic_curves():
-        if curve.name == name:
-            return curve
-    raise ValueError("unknown curve name", name)
-
 
 #
 # Parameter data types
@@ -258,11 +169,6 @@ class SSLCTX(FuncParam):
 class SSL(FuncParam):
     def __init__(self, value):
         super(SSL, self).__init__(value)
-
-
-class EC_builtin_curve(Structure):
-    _fields_ = [("nid", c_int),
-                ("comment", c_char_p)]
 
 
 class BIO(FuncParam):
@@ -566,22 +472,14 @@ _subst = {c_long_parm: c_long}
 _sigs = {}
 __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
            "SSLEAY_VERSION",
-           "SSL_OP_NO_COMPRESSION", "SSL_OP_NO_QUERY_MTU",
+           "SSL_OP_NO_COMPRESSION",
            "SSL_VERIFY_NONE", "SSL_VERIFY_PEER",
            "SSL_VERIFY_FAIL_IF_NO_PEER_CERT", "SSL_VERIFY_CLIENT_ONCE",
            "SSL_SESS_CACHE_OFF", "SSL_SESS_CACHE_CLIENT",
            "SSL_SESS_CACHE_SERVER", "SSL_SESS_CACHE_BOTH",
            "SSL_SESS_CACHE_NO_AUTO_CLEAR", "SSL_SESS_CACHE_NO_INTERNAL_LOOKUP",
            "SSL_SESS_CACHE_NO_INTERNAL_STORE", "SSL_SESS_CACHE_NO_INTERNAL",
-           "SSL_ST_MASK", "SSL_ST_CONNECT", "SSL_ST_ACCEPT", "SSL_ST_INIT", "SSL_ST_BEFORE", "SSL_ST_OK",
-           "SSL_ST_RENEGOTIATE", "SSL_ST_ERR", "SSL_CB_LOOP", "SSL_CB_EXIT", "SSL_CB_READ", "SSL_CB_WRITE",
-           "SSL_CB_ALERT", "SSL_CB_READ_ALERT", "SSL_CB_WRITE_ALERT",
-           "SSL_CB_ACCEPT_LOOP", "SSL_CB_ACCEPT_EXIT",
-           "SSL_CB_CONNECT_LOOP", "SSL_CB_CONNECT_EXIT",
-           "SSL_CB_HANDSHAKE_START", "SSL_CB_HANDSHAKE_DONE",
            "SSL_FILE_TYPE_PEM",
-           "SSL_BUILD_CHAIN_FLAG_NO_ROOT",
-           "SSL_state_string_long",
            "GEN_DIRNAME", "NID_subject_alt_name",
            "CRYPTO_LOCK",
            "CRYPTO_set_locking_callback",
@@ -591,28 +489,15 @@ __all__ = ["BIO_NOCLOSE", "BIO_CLOSE",
            "BIO_dgram_set_connected",
            "BIO_dgram_get_peer", "BIO_dgram_set_peer",
            "BIO_set_nbio",
-           "SSL_CTX_set_ecdh_auto",
-           "SSL_CTX_build_cert_chain",
            "SSL_CTX_set_session_cache_mode", "SSL_CTX_set_read_ahead",
            "SSL_CTX_set_options",
-           "SSL_set_options", "SSL_clear_options", "SSL_get_options",
-           "SSL_get1_curves", "SSL_CTX_set1_curves", "SSL_CTX_set1_curves_list", "SSL_set1_curves_list",
-           "SSL_CTX_set_tmp_ecdh",
-           "SSL_CTX_set_info_callback",
-           "SSL_set_mtu",
            "SSL_read", "SSL_write",
            "SSL_CTX_set_cookie_cb",
-           "SSL_set1_client_sigalgs_list", "SSL_set1_client_sigalgs",
-           "SSL_CTX_set1_client_sigalgs_list", "SSL_CTX_set1_client_sigalgs",
-           "SSL_set1_sigalgs_list", "SSL_set1_sigalgs",
-           "SSL_CTX_set1_sigalgs_list", "SSL_CTX_set1_sigalgs",
            "OBJ_obj2txt", "decode_ASN1_STRING", "ASN1_TIME_print",
            "X509_get_notAfter",
            "ASN1_item_d2i", "GENERAL_NAME_print",
-           "EC_KEY_free",
            "sk_value",
            "sk_pop_free",
-           "get_elliptic_curves",
            "i2d_X509"]  # note: the following map adds to this list
 
 map(lambda x: _make_function(*x), (
@@ -626,9 +511,6 @@ map(lambda x: _make_function(*x), (
     ("CRYPTO_num_locks", libcrypto, ((c_int, "ret"),)),
     ("DTLSv1_server_method", libssl, ((DTLSv1Method, "ret"),)),
     ("DTLSv1_client_method", libssl, ((DTLSv1Method, "ret"),)),
-    ("DTLSv1_2_client_method", libssl, ((DTLSv1Method, "ret"),)),
-    ("DTLSv1_2_server_method", libssl, ((DTLSv1Method, "ret"),)),
-    ("DTLS_server_method", libssl, ((DTLSv1Method, "ret"),)),
     ("SSL_CTX_new", libssl, ((SSLCTX, "ret"), (DTLSv1Method, "meth"))),
     ("SSL_CTX_free", libssl, ((None, "ret"), (SSLCTX, "ctx"))),
     ("SSL_CTX_set_cookie_generate_cb", libssl,
@@ -681,8 +563,6 @@ map(lambda x: _make_function(*x), (
     ("SSL_CTX_set_verify", libssl,
      ((None, "ret"), (SSLCTX, "ctx"), (c_int, "mode"),
       (c_void_p, "verify_callback", 1, None))),
-    ("SSL_CTX_set_verify_depth", libssl,
-     ((None, "ret"), (SSLCTX, "ctx"), (c_int, "depth"))),
     ("SSL_accept", libssl, ((c_int, "ret"), (SSL, "ssl"))),
     ("SSL_connect", libssl, ((c_int, "ret"), (SSL, "ssl"))),
     ("SSL_set_connect_state", libssl, ((None, "ret"), (SSL, "ssl"))),
@@ -750,22 +630,6 @@ map(lambda x: _make_function(*x), (
     ("SSL_CIPHER_get_bits", libssl,
      ((c_int, "ret"), (SSL_CIPHER, "cipher"),
       (POINTER(c_int), "alg_bits", 1, None)), True, None),
-    ("EC_get_builtin_curves", libcrypto,
-     ((c_int, "ret"), (POINTER(EC_builtin_curve), "r"), (c_int, "nitems"))),
-    ("EC_KEY_new_by_curve_name", libcrypto,
-     ((POINTER(c_char), "ret"), (c_int, "nid"))),
-    ("EC_KEY_free", libcrypto,
-     ((None, "ret"), (POINTER(c_char), "key")), False),
-    ("OBJ_nid2sn", libcrypto,
-     ((c_char_p, "ret"), (c_int, "n"))),
-    ("EC_curve_nist2nid", libcrypto,
-     ((c_int, "ret"), (POINTER(c_char), "name")), True, None),
-    ("EC_curve_nid2nist", libcrypto,
-     ((c_char_p, "ret"), (c_int, "nid")), True, None),
-    ("SSL_CTX_set_info_callback", libssl,
-     ((None, "ret"), (SSLCTX, "ctx"), (c_void_p, "callback")), False),
-    ("SSL_state_string_long", libssl,
-     ((c_char_p, "ret"), (SSL, "ssl")), False),
     ))
 
 #
@@ -784,15 +648,6 @@ def CRYPTO_set_locking_callback(locking_function):
     _locking_cb = _rvoid_int_int_charp_int(py_locking_function)
     _CRYPTO_set_locking_callback(_locking_cb)
 
-def SSL_set_mtu(ssl, mtu):
-    return _SSL_ctrl(ssl, SSL_CTRL_SET_MTU, mtu, None)
-
-def SSL_CTX_build_cert_chain(ctx, flags):
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_BUILD_CERT_CHAIN, flags, None)
-
-def SSL_CTX_set_ecdh_auto(ctx, onoff):
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_ECDH_AUTO, onoff, None)
-
 def SSL_CTX_set_session_cache_mode(ctx, mode):
     # Returns the previous value of mode
     _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SESS_CACHE_MODE, mode, None)
@@ -803,47 +658,7 @@ def SSL_CTX_set_read_ahead(ctx, m):
 
 def SSL_CTX_set_options(ctx, options):
     # Returns the new option bitmaks after adding the given options
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_OPTIONS, options, None)
-
-def SSL_set_options(ssl, op):
-    return _SSL_ctrl(ssl, SSL_CTRL_OPTIONS, op, None)
-
-def SSL_clear_options(ssl, op):
-    return _SSL_ctrl(ssl, SSL_CTRL_CLEAR_OPTIONS, op, None)
-
-def SSL_get_options(ssl):
-    return _SSL_ctrl(ssl, SSL_CTRL_OPTIONS, 0, None)
-
-def SSL_get1_curves(ssl, s):
-    _s = cast(s, POINTER(c_int))
-    if s:
-        mem = None
-        cnt = SSL_get1_curves(ssl, 0)
-        if cnt >= s:
-            mem = create_string_buffer(sizeof(POINTER(c_int)) * s)
-            ret = _SSL_ctrl(ssl, SSL_CTRL_GET_CURVES, s, mem)
-        return [x for x in cast(mem, POINTER(c_int))[:s]]
-    else:
-        return _SSL_ctrl(ssl, SSL_CTRL_GET_CURVES, 0, _s)
-
-def SSL_CTX_set1_curves(ctx, clist, clistlen):
-    _curves = (c_int * len(clist))(*clist)
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CURVES, len(_curves), _curves)
-
-def SSL_get_shared_curve(ssl, n):
-    return _SSL_ctrl(ssl, SSL_CTRL_GET_SHARED_CURVE, n, 0)
-
-def SSL_CTX_set1_curves_list(ctx, s):
-    _s = cast(s, POINTER(c_char))
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CURVES_LIST, 0, _s)
-
-def SSL_set1_curves_list(ssl, s):
-    _s = cast(s, POINTER(c_char))
-    return _SSL_ctrl(ssl, SSL_CTRL_SET_CURVES_LIST, 0, _s)
-
-def SSL_CTX_set_tmp_ecdh(ctx, ecdh):
-    # return 1 on success and 0 on failure
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_TMP_ECDH, 0, ecdh)
+    _SSL_CTX_ctrl(ctx, SSL_CTRL_OPTIONS, options, None)
 
 _rint_voidp_ubytep_uintp = CFUNCTYPE(c_int, c_void_p, POINTER(c_ubyte),
                                      POINTER(c_uint))
@@ -930,8 +745,6 @@ def SSL_write(ssl, data):
         str_data = data
     elif hasattr(data, "tobytes") and callable(data.tobytes):
         str_data = data.tobytes()
-    elif isinstance(data, ctypes.Array):
-        str_data = data.raw
     else:
         str_data = str(data)
     return _SSL_write(ssl, str_data, len(str_data))
@@ -1014,73 +827,3 @@ def i2d_X509(x509):
     bio = _BIO(BIO_new(BIO_s_mem()))
     _i2d_X509_bio(bio.value, x509)
     return BIO_get_mem_data(bio.value)
-
-def EC_KEY_free(key):
-    _EC_KEY_free(cast(key, POINTER(c_char)))
-
-_rvoid_voidp_int_int = CFUNCTYPE(None, c_void_p, c_int, c_int)
-
-def SSL_CTX_set_info_callback(ctx, callback):
-    """
-    Set the info callback
-
-    :param callback: The Python callback to use
-    :return: None
-    """
-    def py_info_callback(ssl, where, ret):
-        try:
-            callback(SSL(ssl), where, ret)
-        except:
-            pass
-        return
-
-    global _info_callback
-    _info_callback = _rvoid_voidp_int_int(py_info_callback)
-    _SSL_CTX_set_info_callback(ctx, _info_callback)
-
-
-def SSL_state_string_long(ssl):
-    try:
-        ret = _SSL_state_string_long(ssl)
-    except:
-        pass
-    return ret
-
-# sigalgs_list: (Only for DTLS v1.2)
-#
-# The short or long name values for digests can be used in a string (for example "MD5", "SHA1", "SHA224", "SHA256", "SHA384", "SHA512")
-# and the public key algorithm strings "RSA", "DSA" or "ECDSA".
-# The use of MD5 as a digest is strongly discouraged due to security weaknesses.
-# Example: "ECDSA+SHA256:RSA+SHA256"
-
-def SSL_CTX_set1_client_sigalgs(ctx, slist, slistlen):
-    _slist = (c_int * len(slist))(*slist)
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CLIENT_SIGALGS, len(_slist), _slist)
-
-def SSL_CTX_set1_client_sigalgs_list(ctx, s):
-    _s = cast(s, POINTER(c_char))
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_CLIENT_SIGALGS_LIST, 0, _s)
-
-def SSL_set1_client_sigalgs(ssl, slist, slistlen):
-    _slist = (c_int * len(slist))(*slist)
-    return _SSL_ctrl(ssl, SSL_CTRL_SET_CLIENT_SIGALGS, len(_slist), _slist)
-
-def SSL_set1_client_sigalgs_list(ssl, s):
-    _s = cast(s, POINTER(c_char))
-    return _SSL_ctrl(ssl, SSL_CTRL_SET_CLIENT_SIGALGS_LIST, 0, _s)
-
-def SSL_CTX_set1_sigalgs(ctx, slist, slistlen):
-    _slist = (c_int * len(slist))(*slist)
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SIGALGS, len(_slist), _slist)
-
-def SSL_CTX_set1_sigalgs_list(ctx, s):
-    _s = cast(s, POINTER(c_char))
-    return _SSL_CTX_ctrl(ctx, SSL_CTRL_SET_SIGALGS_LIST, 0, _s)
-
-def SSL_set1_sigalgs(ssl, slist, slistlen):
-    _slist = (c_int * len(slist))(*slist)
-    return _SSL_ctrl(ssl, SSL_CTRL_SET_SIGALGS, len(_slist), _slist)
-
-def SSL_set1_sigalgs_list(ssl, s):
-    _s = cast(s, POINTER(c_char))
-    return _SSL_ctrl(ssl, SSL_CTRL_SET_SIGALGS_LIST, 0, _s)
