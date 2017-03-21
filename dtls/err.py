@@ -47,7 +47,13 @@ ERR_READ_TIMEOUT = 502
 ERR_WRITE_TIMEOUT = 503
 ERR_HANDSHAKE_TIMEOUT = 504
 ERR_PORT_UNREACHABLE = 505
+
+ERR_WRONG_SSL_VERSION = 0x1409210A
+ERR_WRONG_VERSION_NUMBER = 0x1408A10B
 ERR_COOKIE_MISMATCH = 0x1408A134
+ERR_CERTIFICATE_VERIFY_FAILED = 0x14090086
+ERR_NO_SHARED_CIPHER = 0x1408A0C1
+ERR_SSL_HANDSHAKE_FAILURE = 0x1410C0E5
 
 
 class SSLError(socket_error):
@@ -96,8 +102,8 @@ def raise_ssl_error(code, nested=None):
     """Raise an SSL error with the given error code"""
     err_string = str(code) + ": " + _ssl_errors[code]
     if nested:
-        raise SSLError(err_string, nested)
-    raise SSLError(err_string)
+        raise SSLError(code, err_string + str(nested))
+    raise SSLError(code, err_string)
 
 _ssl_errors = {
     ERR_NO_CERTS: "No root certificates specified for verification " + \

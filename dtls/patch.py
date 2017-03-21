@@ -34,15 +34,17 @@ has the following effects:
       PROTOCOL_DTLSv1 for the parameter ssl_version is supported
 """
 
-from socket import SOCK_DGRAM, socket, _delegate_methods, error as socket_error
-from socket import AF_INET, SOCK_DGRAM, getaddrinfo
-from sslconnection import SSLConnection, PROTOCOL_DTLSv1, CERT_NONE
-from sslconnection import DTLS_OPENSSL_VERSION_NUMBER, DTLS_OPENSSL_VERSION
-from sslconnection import DTLS_OPENSSL_VERSION_INFO
-from err import raise_as_ssl_module_error
+from socket import socket, getaddrinfo, _delegate_methods, error as socket_error
+from socket import AF_INET, SOCK_STREAM, SOCK_DGRAM
+from ssl import PROTOCOL_SSLv3, PROTOCOL_SSLv23, CERT_NONE
 from types import MethodType
 from weakref import proxy
 import errno
+
+from sslconnection import SSLConnection, PROTOCOL_DTLS, PROTOCOL_DTLSv1, PROTOCOL_DTLSv1_2
+from sslconnection import DTLS_OPENSSL_VERSION_NUMBER, DTLS_OPENSSL_VERSION, DTLS_OPENSSL_VERSION_INFO
+from err import raise_as_ssl_module_error
+
 
 def do_patch():
     import ssl as _ssl  # import to be avoided if ssl module is never patched
@@ -51,8 +53,14 @@ def do_patch():
     ssl = _ssl
     if hasattr(ssl, "PROTOCOL_DTLSv1"):
         return
+    _orig_wrap_socket = ssl.wrap_socket
+    ssl.wrap_socket = _wrap_socket
+    ssl.PROTOCOL_DTLS = PROTOCOL_DTLS
     ssl.PROTOCOL_DTLSv1 = PROTOCOL_DTLSv1
+    ssl.PROTOCOL_DTLSv1_2 = PROTOCOL_DTLSv1_2
+    ssl._PROTOCOL_NAMES[PROTOCOL_DTLS] = "DTLS"
     ssl._PROTOCOL_NAMES[PROTOCOL_DTLSv1] = "DTLSv1"
+    ssl._PROTOCOL_NAMES[PROTOCOL_DTLSv1_2] = "DTLSv1.2"
     ssl.DTLS_OPENSSL_VERSION_NUMBER = DTLS_OPENSSL_VERSION_NUMBER
     ssl.DTLS_OPENSSL_VERSION = DTLS_OPENSSL_VERSION
     ssl.DTLS_OPENSSL_VERSION_INFO = DTLS_OPENSSL_VERSION_INFO
@@ -62,10 +70,25 @@ def do_patch():
     ssl.get_server_certificate = _get_server_certificate
     raise_as_ssl_module_error()
 
-PROTOCOL_SSLv3 = 1
-PROTOCOL_SSLv23 = 2
+def _wrap_socket(sock, keyfile=None, certfile=None,
+                 server_side=False, cert_reqs=CERT_NONE,
+                 ssl_version=PROTOCOL_DTLS, ca_certs=None,
+                 do_handshake_on_connect=True,
+                 suppress_ragged_eofs=True,
+                 ciphers=None,
+                 cb_user_config_ssl_ctx=None,
+                 cb_user_config_ssl=None):
 
-def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv3, ca_certs=None):
+    return ssl.SSLSocket(sock, keyfile=keyfile, certfile=certfile,
+                         server_side=server_side, cert_reqs=cert_reqs,
+                         ssl_version=ssl_version, ca_certs=ca_certs,
+                         do_handshake_on_connect=do_handshake_on_connect,
+                         suppress_ragged_eofs=suppress_ragged_eofs,
+                         ciphers=ciphers,
+                         cb_user_config_ssl_ctx=cb_user_config_ssl_ctx,
+                         cb_user_config_ssl=cb_user_config_ssl)
+
+def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv23, ca_certs=None):
     """Retrieve a server certificate
 
     Retrieve the certificate from the server at the specified address,
@@ -74,10 +97,10 @@ def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv3, ca_certs=None):
     If 'ssl_version' is specified, use it in the connection attempt.
     """
 
-    if ssl_version != PROTOCOL_DTLSv1:
+    if ssl_version not in (PROTOCOL_DTLS, PROTOCOL_DTLSv1, PROTOCOL_DTLSv1_2):
         return _orig_get_server_certificate(addr, ssl_version, ca_certs)
 
-    if (ca_certs is not None):
+    if ca_certs is not None:
         cert_reqs = ssl.CERT_REQUIRED
     else:
         cert_reqs = ssl.CERT_NONE
@@ -90,11 +113,16 @@ def _get_server_certificate(addr, ssl_version=PROTOCOL_SSLv3, ca_certs=None):
     s.close()
     return ssl.DER_cert_to_PEM_cert(dercert)
 
-def _SSLSocket_init(self, sock, keyfile=None, certfile=None,
+def _SSLSocket_init(self, sock=None, keyfile=None, certfile=None,
                     server_side=False, cert_reqs=CERT_NONE,
-                    ssl_version=PROTOCOL_SSLv23, ca_certs=None,
+                    ssl_version=PROTOCOL_DTLS, ca_certs=None,
                     do_handshake_on_connect=True,
-                    suppress_ragged_eofs=True, ciphers=None):
+                    family=AF_INET, type=SOCK_STREAM, proto=0, fileno=None,
+                    suppress_ragged_eofs=True, npn_protocols=None, ciphers=None,
+                    server_hostname=None,
+                    _context=None,
+                    cb_user_config_ssl_ctx=None,
+                    cb_user_config_ssl=None):
     is_connection = is_datagram = False
     if isinstance(sock, SSLConnection):
         is_connection = True
@@ -102,11 +130,19 @@ def _SSLSocket_init(self, sock, keyfile=None, certfile=None,
         is_datagram = True
     if not is_connection and not is_datagram:
         # Non-DTLS code path
-        return _orig_SSLSocket_init(self, sock, keyfile, certfile,
-                                    server_side, cert_reqs,
-                                    ssl_version, ca_certs,
+        return _orig_SSLSocket_init(self, sock=sock, keyfile=keyfile,
+                                    certfile=certfile, server_side=server_side,
+                                    cert_reqs=cert_reqs,
+                                    ssl_version=ssl_version, ca_certs=ca_certs,
+                                    do_handshake_on_connect=
                                     do_handshake_on_connect,
-                                    suppress_ragged_eofs, ciphers)
+                                    family=family, type=type, proto=proto,
+                                    fileno=fileno,
+                                    suppress_ragged_eofs=suppress_ragged_eofs,
+                                    npn_protocols=npn_protocols,
+                                    ciphers=ciphers,
+                                    server_hostname=server_hostname,
+                                    _context=_context)
     # DTLS code paths: datagram socket and newly accepted DTLS connection
     if is_datagram:
         socket.__init__(self, _sock=sock._sock)
@@ -138,10 +174,17 @@ def _SSLSocket_init(self, sock, keyfile=None, certfile=None,
                                          server_side, cert_reqs,
                                          ssl_version, ca_certs,
                                          do_handshake_on_connect,
-                                         suppress_ragged_eofs, ciphers)
+                                         suppress_ragged_eofs, ciphers,
+                                         cb_user_config_ssl_ctx=cb_user_config_ssl_ctx,
+                                         cb_user_config_ssl=cb_user_config_ssl)
     else:
+        self._connected = True
         self._sslobj = sock
 
+    class FakeContext(object):
+        check_hostname = False
+
+    self._context = FakeContext()
     self.keyfile = keyfile
     self.certfile = certfile
     self.cert_reqs = cert_reqs
@@ -151,6 +194,8 @@ def _SSLSocket_init(self, sock, keyfile=None, certfile=None,
     self.do_handshake_on_connect = do_handshake_on_connect
     self.suppress_ragged_eofs = suppress_ragged_eofs
     self._makefile_refs = 0
+    self._user_config_ssl_ctx = cb_user_config_ssl_ctx
+    self._user_config_ssl = cb_user_config_ssl
 
     # Perform method substitution and addition (without reference cycle)
     self._real_connect = MethodType(_SSLSocket_real_connect, proxy(self))
@@ -158,6 +203,12 @@ def _SSLSocket_init(self, sock, keyfile=None, certfile=None,
     self.accept = MethodType(_SSLSocket_accept, proxy(self))
     self.get_timeout = MethodType(_SSLSocket_get_timeout, proxy(self))
     self.handle_timeout = MethodType(_SSLSocket_handle_timeout, proxy(self))
+
+    # Extra
+    self.getpeercertchain = MethodType(_getpeercertchain, proxy(self))
+
+def _getpeercertchain(self, binary_form=False):
+    return self._sslobj.getpeercertchain(binary_form)
 
 def _SSLSocket_listen(self, ignored):
     if self._connected:
@@ -169,7 +220,9 @@ def _SSLSocket_listen(self, ignored):
                                  self.cert_reqs, self.ssl_version,
                                  self.ca_certs,
                                  self.do_handshake_on_connect,
-                                 self.suppress_ragged_eofs, self.ciphers)
+                                 self.suppress_ragged_eofs, self.ciphers,
+                                 cb_user_config_ssl_ctx=self._user_config_ssl_ctx,
+                                 cb_user_config_ssl=self._user_config_ssl)
 
 def _SSLSocket_accept(self):
     if self._connected:
@@ -184,7 +237,9 @@ def _SSLSocket_accept(self):
                                  self.cert_reqs, self.ssl_version,
                                  self.ca_certs,
                                  self.do_handshake_on_connect,
-                                 self.suppress_ragged_eofs, self.ciphers)
+                                 self.suppress_ragged_eofs, self.ciphers,
+                                 cb_user_config_ssl_ctx=self._user_config_ssl_ctx,
+                                 cb_user_config_ssl=self._user_config_ssl)
     return new_ssl_sock, addr
 
 def _SSLSocket_real_connect(self, addr, return_errno):
@@ -195,7 +250,9 @@ def _SSLSocket_real_connect(self, addr, return_errno):
                                  self.cert_reqs, self.ssl_version,
                                  self.ca_certs,
                                  self.do_handshake_on_connect,
-                                 self.suppress_ragged_eofs, self.ciphers)
+                                 self.suppress_ragged_eofs, self.ciphers,
+                                 cb_user_config_ssl_ctx=self._user_config_ssl_ctx,
+                                 cb_user_config_ssl=self._user_config_ssl)
     try:
         self._sslobj.connect(addr)
     except socket_error as e:

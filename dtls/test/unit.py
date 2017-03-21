@@ -78,9 +78,10 @@ class BasicSocketTests(unittest.TestCase):
 
     def test_constants(self):
         ssl.PROTOCOL_SSLv23
-        ssl.PROTOCOL_SSLv3
         ssl.PROTOCOL_TLSv1
         ssl.PROTOCOL_DTLSv1  # added
+        ssl.PROTOCOL_DTLSv1_2  # added
+        ssl.PROTOCOL_DTLS  # added
         ssl.CERT_NONE
         ssl.CERT_OPTIONAL
         ssl.CERT_REQUIRED
@@ -93,8 +94,8 @@ class BasicSocketTests(unittest.TestCase):
         self.assertIsInstance(t, tuple)
         self.assertIsInstance(s, str)
         # Some sanity checks follow
-        # >= 1.0
-        self.assertGreaterEqual(n, 0x10000000)
+        # >= 1.0.2
+        self.assertGreaterEqual(n, 0x10002000)
         # < 2.0
         self.assertLess(n, 0x20000000)
         major, minor, fix, patch, status = t
@@ -102,7 +103,7 @@ class BasicSocketTests(unittest.TestCase):
         self.assertLess(major, 2)
         self.assertGreaterEqual(minor, 0)
         self.assertLess(minor, 256)
-        self.assertGreaterEqual(fix, 0)
+        self.assertGreaterEqual(fix, 2)
         self.assertLess(fix, 256)
         self.assertGreaterEqual(patch, 0)
         self.assertLessEqual(patch, 26)
@@ -301,28 +302,30 @@ class NetworkedTests(unittest.TestCase):
                                   "to establish session.\n") % count)
 
     def test_get_server_certificate(self):
-        with test_support.transient_internet() as remote:
-            pem = ssl.get_server_certificate(remote, ssl.PROTOCOL_DTLSv1)
-            if not pem:
-                self.fail("No server certificate!")
-
-            try:
+        for prot in (ssl.PROTOCOL_DTLSv1, ssl.PROTOCOL_DTLSv1_2, ssl.PROTOCOL_DTLS):
+            with test_support.transient_internet() as remote:
                 pem = ssl.get_server_certificate(remote,
-                                                 ssl.PROTOCOL_DTLSv1,
-                                                 ca_certs=OTHER_CERTFILE)
-            except ssl.SSLError:
-                #should fail
-                pass
-            else:
-                self.fail("Got server certificate %s!" % pem)
+                                                 prot)
+                if not pem:
+                    self.fail("No server certificate!")
 
-            pem = ssl.get_server_certificate(remote,
-                                             ssl.PROTOCOL_DTLSv1,
-                                             ca_certs=ISSUER_CERTFILE)
-            if not pem:
-                self.fail("No server certificate!")
-            if test_support.verbose:
-                sys.stdout.write("\nVerified certificate is\n%s\n" % pem)
+                try:
+                    pem = ssl.get_server_certificate(remote,
+                                                     prot,
+                                                     ca_certs=OTHER_CERTFILE)
+                except ssl.SSLError:
+                    # should fail
+                    pass
+                else:
+                    self.fail("Got server certificate %s!" % pem)
+
+                pem = ssl.get_server_certificate(remote,
+                                                 prot,
+                                                 ca_certs=ISSUER_CERTFILE)
+                if not pem:
+                    self.fail("No server certificate!")
+                if test_support.verbose:
+                    sys.stdout.write("\nVerified certificate is\n%s\n" % pem)
 
 class ThreadedEchoServer(threading.Thread):
 
@@ -535,6 +538,8 @@ class ThreadedEchoServer(threading.Thread):
                     handler.start()
             except socket.timeout:
                 pass
+            except ssl.SSLError:
+                pass
             except KeyboardInterrupt:
                 self.stop()
         self.sock.close()
@@ -573,6 +578,9 @@ class AsyncoreEchoServer(threading.Thread):
                 self._ssl_accepting = True
                 # Complete the handshake
                 self.handle_read_event()
+
+            def __hash__(self):
+                return hash(self.socket)
 
             def readable(self):
                 while self.socket.pending() > 0:
@@ -1037,10 +1045,33 @@ class ThreadedTests(unittest.TestCase):
         """Connecting to a DTLSv1 server with various client options"""
         if test_support.verbose:
             sys.stdout.write("\n")
+        # server: 1.0 - client: 1.0 -> ok
         try_protocol_combo(ssl.PROTOCOL_DTLSv1, ssl.PROTOCOL_DTLSv1, True)
         try_protocol_combo(ssl.PROTOCOL_DTLSv1, ssl.PROTOCOL_DTLSv1, True,
                            ssl.CERT_OPTIONAL)
         try_protocol_combo(ssl.PROTOCOL_DTLSv1, ssl.PROTOCOL_DTLSv1, True,
+                           ssl.CERT_REQUIRED)
+        # server: any - client: 1.0 and 1.2(any) -> ok
+        try_protocol_combo(ssl.PROTOCOL_DTLS, ssl.PROTOCOL_DTLSv1, True)
+        try_protocol_combo(ssl.PROTOCOL_DTLS, ssl.PROTOCOL_DTLSv1, True,
+                           ssl.CERT_REQUIRED)
+        try_protocol_combo(ssl.PROTOCOL_DTLS, ssl.PROTOCOL_DTLSv1_2, True)
+        try_protocol_combo(ssl.PROTOCOL_DTLS, ssl.PROTOCOL_DTLSv1_2, True,
+                           ssl.CERT_REQUIRED)
+        try_protocol_combo(ssl.PROTOCOL_DTLS, ssl.PROTOCOL_DTLS, True)
+        try_protocol_combo(ssl.PROTOCOL_DTLS, ssl.PROTOCOL_DTLS, True,
+                           ssl.CERT_REQUIRED)
+        # server: 1.0 - client: 1.2 -> fail
+        try_protocol_combo(ssl.PROTOCOL_DTLSv1, ssl.PROTOCOL_DTLSv1_2, False)
+        try_protocol_combo(ssl.PROTOCOL_DTLSv1, ssl.PROTOCOL_DTLSv1_2, False,
+                           ssl.CERT_REQUIRED)
+        # server: 1.2 - client: 1.0 -> fail
+        try_protocol_combo(ssl.PROTOCOL_DTLSv1_2, ssl.PROTOCOL_DTLSv1, False)
+        try_protocol_combo(ssl.PROTOCOL_DTLSv1_2, ssl.PROTOCOL_DTLSv1, False,
+                           ssl.CERT_REQUIRED)
+        # server: 1.2 - client: 1.2 -> ok
+        try_protocol_combo(ssl.PROTOCOL_DTLSv1_2, ssl.PROTOCOL_DTLSv1_2, True)
+        try_protocol_combo(ssl.PROTOCOL_DTLSv1_2, ssl.PROTOCOL_DTLSv1_2, True,
                            ssl.CERT_REQUIRED)
 
     def test_starttls(self):
@@ -1060,7 +1091,7 @@ class ThreadedTests(unittest.TestCase):
         # try to connect
         wrapped = False
         try:
-            s = ssl.wrap_socket(socket.socket(AF_INET4_6, socket.SOCK_DGRAM))
+            s = ssl.wrap_socket(socket.socket(AF_INET4_6, socket.SOCK_DGRAM), ssl_version=ssl.PROTOCOL_DTLSv1)
             s.connect((HOST, server.port))
             s = s.unwrap()
             if test_support.verbose:

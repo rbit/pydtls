@@ -1,3 +1,4 @@
+HOME                   = .
 RANDFILE               = $ENV::HOME/.rnd
 
 [ req ]
