@@ -38,10 +38,34 @@ import socket
 from patch import do_patch
 do_patch()
 from sslconnection import SSLContext, SSL
-from sslconnection import SSL_BUILD_CHAIN_FLAG_NONE, SSL_BUILD_CHAIN_FLAG_UNTRUSTED, \
-    SSL_BUILD_CHAIN_FLAG_NO_ROOT, SSL_BUILD_CHAIN_FLAG_CHECK
+import err as err_codes
 
 _logger = getLogger(__name__)
+
+
+def client(sock, keyfile=None, certfile=None,
+           cert_reqs=ssl.CERT_NONE, ssl_version=ssl.PROTOCOL_DTLSv1_2, ca_certs=None,
+           do_handshake_on_connect=True, suppress_ragged_eofs=True,
+           ciphers=None, curves=None, sigalgs=None, user_mtu=None):
+
+    return DtlsSocket(sock=sock, keyfile=keyfile, certfile=certfile, server_side=False,
+                      cert_reqs=cert_reqs, ssl_version=ssl_version, ca_certs=ca_certs,
+                      do_handshake_on_connect=do_handshake_on_connect, suppress_ragged_eofs=suppress_ragged_eofs,
+                      ciphers=ciphers, curves=curves, sigalgs=sigalgs, user_mtu=user_mtu,
+                      server_key_exchange_curve=None, server_cert_options=ssl.SSL_BUILD_CHAIN_FLAG_NONE)
+
+
+def server(sock, keyfile=None, certfile=None,
+           cert_reqs=ssl.CERT_NONE, ssl_version=ssl.PROTOCOL_DTLS, ca_certs=None,
+           do_handshake_on_connect=False, suppress_ragged_eofs=True,
+           ciphers=None, curves=None, sigalgs=None, user_mtu=None,
+           server_key_exchange_curve=None, server_cert_options=ssl.SSL_BUILD_CHAIN_FLAG_NONE):
+
+    return DtlsSocket(sock=sock, keyfile=keyfile, certfile=certfile, server_side=True,
+                      cert_reqs=cert_reqs, ssl_version=ssl_version, ca_certs=ca_certs,
+                      do_handshake_on_connect=do_handshake_on_connect, suppress_ragged_eofs=suppress_ragged_eofs,
+                      ciphers=ciphers, curves=curves, sigalgs=sigalgs, user_mtu=user_mtu,
+                      server_key_exchange_curve=server_key_exchange_curve, server_cert_options=server_cert_options)
 
 
 class DtlsSocket(object):
@@ -57,7 +81,7 @@ class DtlsSocket(object):
             return self.host, self.port
 
     def __init__(self,
-                 peerOrSock,
+                 sock=None,
                  keyfile=None,
                  certfile=None,
                  server_side=False,
@@ -71,13 +95,12 @@ class DtlsSocket(object):
                  sigalgs=None,
                  user_mtu=None,
                  server_key_exchange_curve=None,
-                 server_cert_options=SSL_BUILD_CHAIN_FLAG_NONE):
+                 server_cert_options=ssl.SSL_BUILD_CHAIN_FLAG_NONE):
 
         if server_cert_options is None:
-            server_cert_options = SSL_BUILD_CHAIN_FLAG_NONE
+            server_cert_options = ssl.SSL_BUILD_CHAIN_FLAG_NONE
 
         self._ssl_logging = False
-        self._peer = None
         self._server_side = server_side
         self._ciphers = ciphers
         self._curves = curves
@@ -87,15 +110,11 @@ class DtlsSocket(object):
         self._server_cert_options = server_cert_options
 
         # Default socket creation
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        if isinstance(peerOrSock, tuple):
-            # Address tuple
-            self._peer = peerOrSock
-        else:
-            # Socket, use given
-            sock = peerOrSock
+        _sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        if isinstance(sock, socket.socket):
+            _sock = sock
 
-        self._sock = ssl.wrap_socket(sock,
+        self._sock = ssl.wrap_socket(_sock,
                                      keyfile=keyfile,
                                      certfile=certfile,
                                      server_side=self._server_side,
@@ -111,13 +130,6 @@ class DtlsSocket(object):
         if self._server_side:
             self._clients = {}
             self._timeout = None
-
-            if self._peer:
-                self._sock.bind(self._peer)
-                self._sock.listen(0)
-        else:
-            if self._peer:
-                self._sock.connect(self._peer)
 
     def __getattr__(self, item):
         if hasattr(self, "_sock") and hasattr(self._sock, item):
@@ -159,16 +171,11 @@ class DtlsSocket(object):
             for cli in self._clients.keys():
                 cli.close()
         else:
-            self._sock.unwrap()
+            try:
+                self._sock.unwrap()
+            except:
+                pass
         self._sock.close()
-
-    def write(self, data):
-        # return self._sock.write(data)
-        return self.sendto(data, self._peer)
-
-    def read(self, len=1024):
-        # return self._sock.read(len=len)
-        return self.recvfrom(len)[0]
 
     def recvfrom(self, bufsize, flags=0):
         if self._server_side:
@@ -180,11 +187,13 @@ class DtlsSocket(object):
         try:
             r, _, _ = select.select(self._getAllReadingSockets(), [], [], self._timeout)
 
-        except socket.timeout as e_timeout:
-            raise e_timeout
+        except socket.timeout:
+            # __Nothing__ received from any client
+            raise socket.timeout
 
         try:
-            for conn in r:  # type: ssl.SSLSocket
+            for conn in r:
+                _last_peer = conn.getpeername() if conn._connected else None
                 if self._sockIsServerSock(conn):
                     # Connect
                     self._clientAccept(conn)
@@ -195,38 +204,43 @@ class DtlsSocket(object):
                     # Normal read
                     else:
                         buf = self._clientRead(conn, bufsize)
-                        if buf and conn in self._clients:
-                            return buf, self._clients[conn].getAddr()
+                        if buf:
+                            if conn in self._clients:
+                                return buf, self._clients[conn].getAddr()
+                            else:
+                                _logger.debug('Received data from an already disconnected client!')
 
         except Exception as e:
+            setattr(e, 'peer', _last_peer)
             raise e
 
         try:
             for conn in self._getClientReadingSockets():
                 if conn.get_timeout():
-                    conn.handle_timeout()
+                    ret = conn.handle_timeout()
+                    _logger.debug('Retransmission triggered for %s: %d' % (str(self._clients[conn].getAddr()), ret))
 
         except Exception as e:
             raise e
 
+        # __No_data__ received from any client
         raise socket.timeout
 
     def _recvfrom_on_client_side(self, bufsize, flags):
         try:
             buf = self._sock.recv(bufsize, flags)
 
-        except ssl.SSLError as e_ssl:
-            if e_ssl.args[0] == ssl.SSL_ERROR_ZERO_RETURN:
-                return '', self._peer
-            elif e_ssl.args[0] in [ssl.SSL_ERROR_SSL, ssl.SSL_ERROR_SYSCALL]:
-                raise e_ssl
-            else:  # like in [ssl.SSL_ERROR_WANT_READ, ...]
+        except ssl.SSLError as e:
+            if e.errno == ssl.ERR_READ_TIMEOUT or e.args[0] == ssl.SSL_ERROR_WANT_READ:
                 pass
+            else:
+                raise e
 
         else:
             if buf:
-                return buf, self._peer
+                return buf, self._sock.getpeername()
 
+        # __No_data__ received from any client
         raise socket.timeout
 
     def sendto(self, buf, address):
@@ -242,19 +256,13 @@ class DtlsSocket(object):
         return 0
 
     def _sendto_from_client_side(self, buf, address):
-        while True:
-            try:
-                bytes_sent = self._sock.send(buf)
+        try:
+            if not self._sock._connected:
+                self._sock.connect(address)
+            bytes_sent = self._sock.send(buf)
 
-            except ssl.SSLError as e_ssl:
-                if str(e_ssl).startswith("503:"):
-                    # The write operation timed out
-                    continue
-                raise e_ssl
-
-            else:
-                if bytes_sent:
-                    break
+        except ssl.SSLError as e:
+            raise e
 
         return bytes_sent
 
@@ -278,14 +286,15 @@ class DtlsSocket(object):
             ret = conn.accept()
             _logger.debug('Accept returned with ... %s' % (str(ret)))
 
-        except Exception as e_accept:
-            raise e_accept
+        except Exception as e:
+            raise e
 
         else:
             if ret:
                 client, addr = ret
                 host, port = addr
                 if client in self._clients:
+                    _logger.debug('Client already connected %s' % str(client))
                     raise ValueError
                 self._clients[client] = self._ClientSession(host=host, port=port)
 
@@ -297,17 +306,16 @@ class DtlsSocket(object):
 
         try:
             conn.do_handshake()
-            _logger.debug('Connection from %s succesful' % (str(self._clients[conn].getAddr())))
+            _logger.debug('Connection from %s successful' % (str(self._clients[conn].getAddr())))
 
             self._clients[conn].handshake_done = True
 
-        except ssl.SSLError as e_handshake:
-            if str(e_handshake).startswith("504:"):
-                pass
-            elif e_handshake.args[0] == ssl.SSL_ERROR_WANT_READ:
+        except ssl.SSLError as e:
+            if e.errno == err_codes.ERR_HANDSHAKE_TIMEOUT or e.args[0] == ssl.SSL_ERROR_WANT_READ:
                 pass
             else:
-                raise e_handshake
+                self._clientDrop(conn, error=e)
+                raise e
 
     def _clientRead(self, conn, bufsize=4096):
         _logger.debug('*' * 60)
@@ -317,13 +325,11 @@ class DtlsSocket(object):
             ret = conn.recv(bufsize)
             _logger.debug('From client %s ... bytes received %s' % (str(self._clients[conn].getAddr()), str(len(ret))))
 
-        except ssl.SSLError as e_read:
-            if e_read.args[0] == ssl.SSL_ERROR_ZERO_RETURN:
-                self._clientDrop(conn)
-            elif e_read.args[0] in [ssl.SSL_ERROR_SSL, ssl.SSL_ERROR_SYSCALL]:
-                self._clientDrop(conn, error=e_read)
-            else:  # like in [ssl.SSL_ERROR_WANT_READ, ...]
+        except ssl.SSLError as e:
+            if e.args[0] == ssl.SSL_ERROR_WANT_READ:
                 pass
+            else:
+                self._clientDrop(conn, error=e)
 
         return ret
 
@@ -338,8 +344,8 @@ class DtlsSocket(object):
             ret = conn.send(_data)
             _logger.debug('To client %s ... bytes sent %s' % (str(self._clients[conn].getAddr()), str(ret)))
 
-        except Exception as e_write:
-            raise e_write
+        except Exception as e:
+            raise e
 
         return ret
 
@@ -354,8 +360,11 @@ class DtlsSocket(object):
 
             if conn in self._clients:
                 del self._clients[conn]
-            conn.unwrap()
+            try:
+                conn.unwrap()
+            except:
+                pass
             conn.close()
 
-        except Exception as e_drop:
+        except Exception as e:
             pass

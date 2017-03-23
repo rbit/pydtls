@@ -54,7 +54,14 @@ ERR_COOKIE_MISMATCH = 0x1408A134
 ERR_CERTIFICATE_VERIFY_FAILED = 0x14090086
 ERR_NO_SHARED_CIPHER = 0x1408A0C1
 ERR_SSL_HANDSHAKE_FAILURE = 0x1410C0E5
+ERR_TLSV1_ALERT_UNKNOWN_CA = 0x14102418
 
+def patch_ssl_errors():
+    import ssl
+    errors = [i for i in globals().iteritems() if type(i[1]) == int and str(i[0]).startswith('ERR_')]
+    for k, v in errors:
+        if not hasattr(ssl, k):
+            setattr(ssl, k, v)
 
 class SSLError(socket_error):
     """This exception is raised by modules in the dtls package."""

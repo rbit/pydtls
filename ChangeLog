@@ -1,3 +1,17 @@
+2017-03-23  Björn Freise  <mcfreis@gmx.net>
+
+	Patched ssl-Module with SSL_BUILD_*- and ERR_*- constants and added aliases for wrap_server() and wrap_client()
+
+	* dtls/__init__.py: Added DtlsSocket() from wrapper and aliases for wrap_server() and wrap_client()
+	* dtls/err.py: Added patch_ssl_errors() to patch ssl-Module with ERR_* constants
+	* dtls/patch.py: Patched ssl-Module with SSL_BUILD_* constants and added call to patch_ssl_errors()
+	* dtls/wrapper.py:
+	    - Added a server and client function to alias/wrap DtlsSocket() creation
+	    - Cleanup of DtlsSocket.__init__()
+	    - Cleanup of exception handling in all member methods
+	    - Cleanup sendto() from client: no endless loop and first do a connect if not already connected
+	* dtls/test/unit_wrapper.py: Adopt the changes made described above
+
 2017-03-17  Björn Freise  <mcfreis@gmx.net>
 
 	Added a wrapper for a DTLS-Socket either as client or server - including unit tests

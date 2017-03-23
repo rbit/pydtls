@@ -15,8 +15,7 @@ from logging import basicConfig, DEBUG, getLogger
 _logger = getLogger(__name__)
 
 import ssl
-from dtls import do_patch, error_codes
-from dtls.wrapper import DtlsSocket, SSL_BUILD_CHAIN_FLAG_NONE, SSL_BUILD_CHAIN_FLAG_NO_ROOT
+from dtls import DtlsSocket
 
 
 HOST = "localhost"
@@ -186,7 +185,7 @@ tests = [
           'client_sigalgs': None},
      'result':
          {'ret_success': False,
-          'error_code': error_codes.ERR_WRONG_SSL_VERSION,
+          'error_code': ssl.ERR_WRONG_SSL_VERSION,
           'exception': None}},
     {'testcase':
         {'name': 'certificate verify fails',
@@ -209,7 +208,7 @@ tests = [
           'client_sigalgs': None},
      'result':
          {'ret_success': False,
-          'error_code': error_codes.ERR_CERTIFICATE_VERIFY_FAILED,
+          'error_code': ssl.ERR_CERTIFICATE_VERIFY_FAILED,
           'exception': None}},
     {'testcase':
         {'name': 'no matching curve',
@@ -232,7 +231,7 @@ tests = [
           'client_sigalgs': None},
      'result':
          {'ret_success': False,
-          'error_code': error_codes.ERR_SSL_HANDSHAKE_FAILURE,
+          'error_code': ssl.ERR_SSL_HANDSHAKE_FAILURE,
           'exception': None}},
     {'testcase':
          {'name': 'matching curve',
@@ -278,7 +277,7 @@ tests = [
           'client_sigalgs': None},
      'result':
          {'ret_success': False,
-          'error_code': error_codes.ERR_PORT_UNREACHABLE,
+          'error_code': ssl.ERR_PORT_UNREACHABLE,
           'exception': None}},
     {'testcase':
         {'name': 'no matching sigalgs',
@@ -301,7 +300,7 @@ tests = [
           'client_sigalgs': "RSA+SHA256"},
      'result':
          {'ret_success': False,
-          'error_code': error_codes.ERR_SSL_HANDSHAKE_FAILURE,
+          'error_code': ssl.ERR_SSL_HANDSHAKE_FAILURE,
           'exception': None}},
     {'testcase':
         {'name': 'matching sigalgs',
@@ -347,7 +346,7 @@ tests = [
           'client_sigalgs': None},
      'result':
          {'ret_success': False,
-          'error_code': error_codes.ERR_SSL_HANDSHAKE_FAILURE,
+          'error_code': ssl.ERR_SSL_HANDSHAKE_FAILURE,
           'exception': None}},
     {'testcase':
         {'name': 'matching cipher',
@@ -493,13 +492,8 @@ class TestSequenceMeta(type):
 class WrapperTests(unittest.TestCase):
     __metaclass__ = TestSequenceMeta
 
-    def setUp(self):
-        super(WrapperTests, self).setUp()
-
-        do_patch()
-
     def test_build_cert_chain(self):
-        steps = [SSL_BUILD_CHAIN_FLAG_NONE, SSL_BUILD_CHAIN_FLAG_NO_ROOT]
+        steps = [ssl.SSL_BUILD_CHAIN_FLAG_NONE, ssl.SSL_BUILD_CHAIN_FLAG_NO_ROOT]
         chatty, connectionchatty = CHATTY, CHATTY_CLIENT
         indata = 'FOO'
         certs = dict()
