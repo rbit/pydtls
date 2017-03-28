@@ -36,7 +36,7 @@ has the following effects:
 
 from socket import socket, getaddrinfo, _delegate_methods, error as socket_error
 from socket import AF_INET, SOCK_STREAM, SOCK_DGRAM
-from ssl import PROTOCOL_SSLv3, PROTOCOL_SSLv23, CERT_NONE
+from ssl import PROTOCOL_SSLv23, CERT_NONE
 from types import MethodType
 from weakref import proxy
 import errno

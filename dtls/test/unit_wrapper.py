@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 # Test the support for DTLS through the SSL module. Adapted from the Python
 # standard library's test_ssl.py regression test module by Björn Freise.
@@ -15,7 +15,7 @@ from logging import basicConfig, DEBUG, getLogger
 _logger = getLogger(__name__)
 
 import ssl
-from dtls import DtlsSocket
+from dtls.wrapper import DtlsSocket
 
 
 HOST = "localhost"

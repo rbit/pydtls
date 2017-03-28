@@ -1,3 +1,20 @@
+2017-03-28  Björn Freise  <mcfreis@gmx.net>
+
+	Minor fixes and "hopefully" compatible to Ubuntu 16.04
+
+	* dtls/__init__.py: Removed wrapper import
+	* dtls/openssl.py: Fixed line endings to LF
+	* dtls/patch.py: Removed PROTOCOL_SSLv3 import and fixed line endings to LF
+	* dtls/sslconnection.py: Fixed line endings to LF
+	* dtls/test/certs/*_ec.pem: Fixed line endings to LF
+	* dtls/test/echo_seq.py: Fixed line endings to LF
+	* dtls/test/simple_client.py: Fixed line endings to LF
+	* dtls/test/unit.py: Fixed line endings to LF
+	* dtls/test/unit_wrapper.py: Corrected wrapper import and fixed line endings to LF
+	* dtls/util.py: Fixed line endings to LF
+	* dtls/wrapper.py: Corrected function naming to wrap_client() and wrap_server(); Fixed line endings to LF
+	* dtls/x509.py: Fixed line endings to LF
+
 2017-03-23  Björn Freise  <mcfreis@gmx.net>
 
 	Patched ssl-Module with SSL_BUILD_*- and ERR_*- constants and added aliases for wrap_server() and wrap_client()
