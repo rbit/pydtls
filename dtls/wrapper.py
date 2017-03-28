@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 # DTLS Socket: A wrapper for a server and client using a DTLS connection.
 
@@ -43,10 +43,10 @@ import err as err_codes
 _logger = getLogger(__name__)
 
 
-def client(sock, keyfile=None, certfile=None,
-           cert_reqs=ssl.CERT_NONE, ssl_version=ssl.PROTOCOL_DTLSv1_2, ca_certs=None,
-           do_handshake_on_connect=True, suppress_ragged_eofs=True,
-           ciphers=None, curves=None, sigalgs=None, user_mtu=None):
+def wrap_client(sock, keyfile=None, certfile=None,
+                cert_reqs=ssl.CERT_NONE, ssl_version=ssl.PROTOCOL_DTLSv1_2, ca_certs=None,
+                do_handshake_on_connect=True, suppress_ragged_eofs=True,
+                ciphers=None, curves=None, sigalgs=None, user_mtu=None):
 
     return DtlsSocket(sock=sock, keyfile=keyfile, certfile=certfile, server_side=False,
                       cert_reqs=cert_reqs, ssl_version=ssl_version, ca_certs=ca_certs,
@@ -55,11 +55,11 @@ def client(sock, keyfile=None, certfile=None,
                       server_key_exchange_curve=None, server_cert_options=ssl.SSL_BUILD_CHAIN_FLAG_NONE)
 
 
-def server(sock, keyfile=None, certfile=None,
-           cert_reqs=ssl.CERT_NONE, ssl_version=ssl.PROTOCOL_DTLS, ca_certs=None,
-           do_handshake_on_connect=False, suppress_ragged_eofs=True,
-           ciphers=None, curves=None, sigalgs=None, user_mtu=None,
-           server_key_exchange_curve=None, server_cert_options=ssl.SSL_BUILD_CHAIN_FLAG_NONE):
+def wrap_server(sock, keyfile=None, certfile=None,
+                cert_reqs=ssl.CERT_NONE, ssl_version=ssl.PROTOCOL_DTLS, ca_certs=None,
+                do_handshake_on_connect=False, suppress_ragged_eofs=True,
+                ciphers=None, curves=None, sigalgs=None, user_mtu=None,
+                server_key_exchange_curve=None, server_cert_options=ssl.SSL_BUILD_CHAIN_FLAG_NONE):
 
     return DtlsSocket(sock=sock, keyfile=keyfile, certfile=certfile, server_side=True,
                       cert_reqs=cert_reqs, ssl_version=ssl_version, ca_certs=ca_certs,
