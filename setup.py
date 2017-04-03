@@ -33,7 +33,7 @@ for scheme in INSTALL_SCHEMES.values():
     scheme['data'] = scheme['purelib']
 
 NAME = "Dtls"
-VERSION = "1.0.2"
+VERSION = "1.2.0"
 
 DIST_DIR = "dist"
 FORMAT_TO_SUFFIX = { "zip": ".zip",
