@@ -32,6 +32,8 @@ sockets.
 wrap_socket's parameters and their semantics have been maintained.
 """
 
+VERSION = 1, 2, 0
+
 def _prep_bins():
     """
     Support for running straight out of a cloned source directory instead

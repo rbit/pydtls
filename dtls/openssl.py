@@ -60,19 +60,10 @@ _logger = getLogger(__name__)
 #
 if sys.platform.startswith('win'):
     dll_path = path.abspath(path.dirname(__file__))
-    debug_cryptodll_path = path.join(dll_path, "cygcrypto-1.0.0.dll")
-    debug_ssldll_path = path.join(dll_path, "cygssl-1.0.0.dll")
-    release_cryptodll_path = path.join(dll_path, "libeay32.dll")
-    release_ssldll_path = path.join(dll_path, "ssleay32.dll")
-    if path.exists(path.join(dll_path, "use_debug_openssl")) and \
-      path.exists(debug_cryptodll_path) and \
-      path.exists(debug_ssldll_path):
-        libcrypto = CDLL(debug_cryptodll_path)
-        libssl = CDLL(debug_ssldll_path)
-    else:
-        # If these don't exist, then let the exception propagate
-        libcrypto = CDLL(release_cryptodll_path)
-        libssl = CDLL(release_ssldll_path)
+    cryptodll_path = path.join(dll_path, "libeay32.dll")
+    ssldll_path = path.join(dll_path, "ssleay32.dll")
+    libcrypto = CDLL(cryptodll_path)
+    libssl = CDLL(ssldll_path)
 else:
     libcrypto = CDLL("libcrypto.so.1.0.0")
     libssl = CDLL("libssl.so.1.0.0")

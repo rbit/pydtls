@@ -1,3 +1,14 @@
+2017-04-02  Ray Brown  <code@liquibits.com>
+
+	Release 1.2.0 Preparation
+
+	* README.txt -> README.md: renamed
+	* dtls/sslconnection.py: Reduce the default MTU in effect while handshaking to 576, suitable for various path MTUs and PPPoE
+	* dtls/prebuilt/win32-x86[_64]: Rebuilt with Visual C++ 2008 to eliminate requirement to install a C++ redistributable package
+	* dtls/prebuilt/mingw-x86: mingw support is deprecated
+	* dtls/__init__.py: VERSION introduced
+	* setup.py: Version incremented to 1.2.0
+
 2017-03-28  Björn Freise  <mcfreis@gmx.net>
 
 	Workaround for Windows concerning the MTU size

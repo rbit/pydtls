@@ -562,9 +562,10 @@ class SSLConnection(object):
         if self._user_config_ssl:
             self._user_config_ssl(self._intf_ssl)
 
-        if sys.platform.startswith('win') and not (SSL_get_options(self._ssl.value) & SSL_OP_NO_QUERY_MTU):
+        if sys.platform.startswith('win') and \
+           not (SSL_get_options(self._ssl.value) & SSL_OP_NO_QUERY_MTU):
             SSL_set_options(self._ssl.value, SSL_OP_NO_QUERY_MTU)
-            DTLS_set_link_mtu(self._ssl.value, 1500)
+            DTLS_set_link_mtu(self._ssl.value, 576)
 
         SSL_set_bio(self._ssl.value, self._rbio.value, self._wbio.value)
         self._rbio.disown()
