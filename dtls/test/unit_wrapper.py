@@ -378,7 +378,7 @@ def params_test(start_server, certfile, protocol, certreqs, cacertsfile,
                 client_certfile=None, client_protocol=None, client_certreqs=None, client_cacertsfile=None,
                 ciphers=None, curves=None, sigalgs=None,
                 client_ciphers=None, client_curves=None, client_sigalgs=None,
-                mtu=1500, server_key_exchange_curve=None, server_cert_options=None,
+                mtu=None, server_key_exchange_curve=None, server_cert_options=None,
                 indata="FOO\n", chatty=False, connectionchatty=False):
     """
     Launch a server, connect a client to it and try various reads
@@ -508,7 +508,7 @@ class WrapperTests(unittest.TestCase):
                                         ciphers=None,
                                         curves=None,
                                         sigalgs=None,
-                                        mtu=1500,
+                                        mtu=None,
                                         server_key_exchange_curve=None,
                                         server_cert_options=step,
                                         chatty=chatty)
@@ -526,7 +526,7 @@ class WrapperTests(unittest.TestCase):
                                ciphers=None,
                                curves=None,
                                sigalgs=None,
-                               user_mtu=1500)
+                               user_mtu=None)
                 s.connect((HOST, server.port))
                 if connectionchatty:
                     sys.stdout.write(" client:  sending %s...\n" % (repr(indata)))
@@ -595,7 +595,7 @@ class WrapperTests(unittest.TestCase):
                                         ciphers=None,
                                         curves=None,
                                         sigalgs=None,
-                                        mtu=1500,
+                                        mtu=None,
                                         server_key_exchange_curve=server_curve,
                                         server_cert_options=None,
                                         chatty=chatty)
@@ -613,7 +613,7 @@ class WrapperTests(unittest.TestCase):
                                ciphers=None,
                                curves=client_curve,
                                sigalgs=None,
-                               user_mtu=1500)
+                               user_mtu=None)
                 s.connect((HOST, server.port))
                 if connectionchatty:
                     sys.stdout.write(" client:  sending %s...\n" % (repr(indata)))

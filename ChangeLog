@@ -1,5 +1,12 @@
 2017-03-28  Björn Freise  <mcfreis@gmx.net>
 
+	Workaround for Windows concerning the MTU size
+
+	* dtls/sslconnection.py: Hardcoded setting of the MTU size only for Windows and in case it is not already configured
+	* dtls/test/unit_wrapper.py: No user config of the MTU size; using the hardcoded one from SSLConnection
+
+2017-03-28  Björn Freise  <mcfreis@gmx.net>
+
 	Minor fixes and "hopefully" compatible to Ubuntu 16.04
 
 	* dtls/__init__.py: Removed wrapper import
