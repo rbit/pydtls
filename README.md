@@ -1,6 +1,4 @@
-============================================
-Datagram Transport Layer Security for Python
-============================================
+# Datagram Transport Layer Security for Python
 
 PyDTLS brings Datagram Transport Layer Security (DTLS - RFC 6347:
 http://tools.ietf.org/html/rfc6347) to the Python environment. In a
@@ -13,47 +11,51 @@ DTLS is now very easy to use in Python. If you're familiar with the
 ssl module in Python's standard library, you already know how. All it
 takes is passing a datagram/UDP socket to the *wrap_socket* function
 instead of a stream/TCP socket. Here's how one sets up the client side
-of a connection::
+of a connection:
 
-    import ssl
-    from socket import socket, AF_INET, SOCK_DGRAM
-    from dtls import do_patch
-    do_patch()
-    sock = ssl.wrap_socket(socket(AF_INET, SOCK_DGRAM))
-    sock.connect(('foo.bar.com', 1234))
-    sock.send('Hi there')
+```
+import ssl
+from socket import socket, AF_INET, SOCK_DGRAM
+from dtls import do_patch
+do_patch()
+sock = ssl.wrap_socket(socket(AF_INET, SOCK_DGRAM))
+sock.connect(('foo.bar.com', 1234))
+sock.send('Hi there')
+```
 
-Design Goals
-============
+As of version 1.2.0, PyDTLS supports DTLS version 1.2 in addition to
+version 1.0. This version also introduces forward secrecy using
+elliptic curve cryptography and more fine-grained configuration options.
+
+## Design Goals
 
 The primary design goal of PyDTLS is broad availability. It has therefore
 been built to be widely compatible with the following:
 
-    * Operating systems: apart from the Python standard library, PyDTLS
-      relies on the OpenSSL library only. OpenSSL is widely ported, and
-      in fact the Python standard library's *ssl* module also uses it.
-    * Python runtime environments: PyDTLS is a package consisting of
-      pure Python modules only. It should therefore be portable to many
-      interpreters and runtime environments. It interfaces with OpenSSL
-      strictly through the standard library's *ctypes* foreign function
-      library.
-    * The Python standard library: the standard library's *ssl* module is
-      Python's de facto interface to SSL/TLS. PyDTLS aims to be compatible
-      with the full public interface presented by this module. The ssl
-      module ought to behave identically with respect to all of its
-      functions and options when used in conjunction with PyDTLS and
-      datagram sockets as when used without PyDTLS and stream sockets.
-    * Connection-based protocols: as outlined below, layering security
-      on top of datagram sockets requires introducing certain
-      connection constructs normally absent from datagram
-      sockets. These constructs have been added in such a way as to be
-      compatible with code that expects to interoperate with
-      connection-oriented stream sockets. For example, code that
-      expects to go through server-side bind/listen/accept connection
-      establishment should be reusable with PyDTLS sockets.
+  * Operating systems: apart from the Python standard library, PyDTLS
+    relies on the OpenSSL library only. OpenSSL is widely ported, and
+    in fact the Python standard library's *ssl* module also uses it.
+  * Python runtime environments: PyDTLS is a package consisting of
+    pure Python modules only. It should therefore be portable to many
+    interpreters and runtime environments. It interfaces with OpenSSL
+    strictly through the standard library's *ctypes* foreign function
+    library.
+  * The Python standard library: the standard library's *ssl* module is
+    Python's de facto interface to SSL/TLS. PyDTLS aims to be compatible
+    with the full public interface presented by this module. The ssl
+    module ought to behave identically with respect to all of its
+    functions and options when used in conjunction with PyDTLS and
+    datagram sockets as when used without PyDTLS and stream sockets.
+  * Connection-based protocols: as outlined below, layering security
+    on top of datagram sockets requires introducing certain
+    connection constructs normally absent from datagram
+    sockets. These constructs have been added in such a way as to be
+    compatible with code that expects to interoperate with
+    connection-oriented stream sockets. For example, code that
+    expects to go through server-side bind/listen/accept connection
+    establishment should be reusable with PyDTLS sockets.
 
-Distributions
-=============
+## Distributions
 
 PyDTLS requires version 1.0.0 or higher of the OpenSSL
 library. Earlier versions are reported not to offer stable DTLS
@@ -67,14 +69,15 @@ no further installation steps.
 In comparison, installation of OpenSSL on Microsoft Windows operating
 systems is inconvenient. For this reason, source distributions of
 PyDTLS are available that include OpenSSL dll's for 32-bit and 64-bit
-Windows. For 32-bit Windows, a version built with the MinGW toolchain
-is also available. Its archive includes stripped as well as
-non-stripped dll's. The latter can be debugged with gdb on
 Windows. All dll's have been linked with the Visual Studio 2008
 version of the Microsoft C runtime library, msvcr90.dll, the version
 used by CPython 2.7. Installation of Microsoft redistributable runtime
 packages should therefore not be required on machines with CPython
 2.7. The version of OpenSSL distributed with PyDTLS 0.1.0 is 1.0.1c.
+The version distributed with PyDTLS 1.2.0 is commit
+248cf959672041f38f4d80a4a09ee01d8ab04fe8 (branch OpenSSL_1_0_2-stable,
+1.0.2l-dev, containing a desirable fix to DTLSv1_listen not present
+in 1.0.2k, the stable version at the time of PyDTLS 1.2.0 release).
 
 The OpenSSL version used by PyDTLS can be determined from the values
 of *sslconnection's* DTLS_OPENSSL_VERSION_NUMBER,
@@ -83,8 +86,7 @@ are available through the *ssl* module also if *do_patch* has been
 called (see below). Note that the OpenSSL version used by PyDTLS may
 differ from the one used by the *ssl* module.
 
-Interfaces
-==========
+## Interfaces
 
 PyDTLS' top-level package, *dtls*, provides DTLS support through the
 **SSLConnection** class of its *sslconnection*
@@ -111,8 +113,7 @@ exceptions of type **ssl.SSLError** instead of its default
 remain identical when interfacing with *ssl* across stream and
 datagram sockets.
 
-Connection Handling
-===================
+## Connection Handling
 
 The DTLS protocol implies a connection as an association between two
 network peers where the overall association state is characterized by the
@@ -145,12 +146,11 @@ prohibited by *ssl*. *accept* returns peer address information, as
 expected. Note that when using the *ssl* interface to *dtls*, *listen*
 must be called before calling *accept*.
 
-Demultiplexing
-==============
+## Demultiplexing
 
 At the network io layer, only datagrams from its connected peer must be
 passed to a **SSLConnection** or **SSLSocket** object (unless the object
-is unconnected on the server-side, in which case in can be in listening
+is unconnected on the server-side, in which case it can be in listening
 mode, the initial server-side socket whose role it is to listen for
 incoming client connection requests).
 
@@ -203,8 +203,7 @@ socket might now be readable as a result of the forwarded
 datagram. *accept* must return so that the application can iterate on
 its asynchronous *select* loop.
 
-Shutdown and Unwrapping
-=======================
+## Shutdown and Unwrapping
 
 PyDTLS implements the SSL/TLS shutdown protocol as it has been adapted
 for DTLS. **SSLConnection's** *shutdown* and **SSLSocket's** *unwrap*
@@ -227,21 +226,19 @@ passing it to *ssl.wrap_socket* or the **SSLConnection**
 constructor. If *osnet* is used, an actual *socket.socket* instance is
 returned.
 
-Framework Compatibility
-=======================
+## Framework Compatibility
 
 PyDTLS sockets have been tested under the following usage modes:
 
-    * Using blocking sockets and sockets with timeouts in
-      multi-threaded UDP servers
-    * Using non-blocking sockets, and in conjunction with the
-      asynchronous socket handler, asyncore
-    * Using blocking sockets, and in conjunction with the network
-      server framework SocketServer - ThreadingTCPServer (this works
-      because of PyDTLS's emulation of connection-related calls)
+  * Using blocking sockets and sockets with timeouts in
+    multi-threaded UDP servers
+  * Using non-blocking sockets, and in conjunction with the
+    asynchronous socket handler, asyncore
+  * Using blocking sockets, and in conjunction with the network
+    server framework SocketServer - ThreadingTCPServer (this works
+    because of PyDTLS's emulation of connection-related calls)
 
-Multi-thread Support
-====================
+## Multi-thread Support
 
 Using multiple threads with OpenSSL requires implementing a locking
 callback. PyDTLS does implement this, and therefore multi-threaded
@@ -267,8 +264,16 @@ platforms where PyDTLS loads the same OpenSSL shared object as
 *ssl*. On Ubuntu 12.04, for example, this is the case, but on
 Microsoft Windows it is not.
 
-Testing
-=======
+## Testing
+
+A simple echo server is available to be executed from the project root
+directory with `python -m dtls.test.echo_seq`. The echo server is
+reachable using the code snippet at the top of this document, using port
+28000 at "localhost".
+
+Unit test suites can be executed from the project root directory with
+`python -m dtls.test.unit [-v]` and `python -m dtls.test.unit_wrapper`
+(for the client and server wrappers)
 
 Almost all of the Python standard library's *ssl* unit tests from the
 module *test_ssl.py* have been ported to *dtls.test.unit.py*. All tests
@@ -311,18 +316,19 @@ benefits of DTLS over SSL). Nevertheless, some useful insights can be
 gained by observing the operation of test_perf.py, including software
 stack behavior in the presence of some amount of packet loss.
 
-Logging
-=======
+## Logging
 
 The *dtls* package and its sub-packages log various occurrences,
 primarily events that can aid debugging. Especially *router* emits many
 messages when the logging level is set to at least *logging.DEBUG*.
 dtls/test/echo_seq.py activates this logging level during its operation.
 
-Currently Supported Platforms
-=============================
+## Currently Supported Platforms
 
 At the time of initial release, PyDTLS 0.1.0 has been tested on Ubuntu
 12.04.1 LTS 32-bit and 64-bit, as well as Microsoft Windows 7 32-bit
 and 64-bit, using CPython 2.7.3. Patches with additional platform
 ports are welcome.
+
+As of release 1.2.0, PyDTLS is tested on Ubuntu 16.04 LTS as well as
+Microsoft Windows 10, using CPython 2.7.13.
