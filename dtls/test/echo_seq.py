@@ -39,6 +39,7 @@ basicConfig(level=DEBUG)  # set now for dtls import code
 from dtls.sslconnection import SSLConnection
 from dtls.err import SSLError, SSL_ERROR_WANT_READ, SSL_ERROR_ZERO_RETURN
 
+
 def main():
     sck = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sck.bind(("127.0.0.1", 28000))
@@ -46,8 +47,8 @@ def main():
     cert_path = path.join(path.abspath(path.dirname(__file__)), "certs")
     scn = SSLConnection(
         sck,
-        keyfile=path.join(cert_path, "server-key.pem"),
-        certfile=path.join(cert_path, "server-cert.pem"),
+        keyfile=path.join(cert_path, "keycert.pem"),
+        certfile=path.join(cert_path, "keycert.pem"),
         server_side=True,
         ca_certs=path.join(cert_path, "ca-cert.pem"),
         do_handshake_on_connect=False)
@@ -76,7 +77,7 @@ def main():
         try:
             conn.do_handshake()
         except SSLError as err:
-            if str(err).startswith("504:"):
+            if err.errno == 504:
                 continue
             raise
         print "Completed handshaking with peer"
@@ -92,7 +93,7 @@ def main():
         try:
             message = conn.read()
         except SSLError as err:
-            if str(err).startswith("502:"):
+            if err.errno == 502:
                 continue
             if err.args[0] == SSL_ERROR_ZERO_RETURN:
                 break
@@ -111,7 +112,7 @@ def main():
             s = conn.shutdown()
             s.shutdown(socket.SHUT_RDWR)
         except SSLError as err:
-            if str(err).startswith("502:"):
+            if err.errno == 502:
                 continue
             raise
         break
