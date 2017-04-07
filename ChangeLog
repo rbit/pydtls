@@ -1,3 +1,12 @@
+2017-04-06  Ray Brown  <code@liquibits.com>
+
+	Installation Fixes and Improvements
+
+	Installation as well as distribution generation are now simplified. With the elimination of MinGW support there is now a unique set of platform binaries for 32-bit and 64-bit Windows. Pip will now automatically choose the proper binary wheel or the source distribution, depending under which platform and Python version it is being invoked.
+
+	* README.md: add installation section
+	* setup.py: rewrite to use bdist_wheel for Windows
+
 2017-04-03  Ray Brown  <ray@Virtor10>
 
 	Release 1.2.0

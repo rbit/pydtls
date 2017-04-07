@@ -27,6 +27,14 @@ As of version 1.2.0, PyDTLS supports DTLS version 1.2 in addition to
 version 1.0. This version also introduces forward secrecy using
 elliptic curve cryptography and more fine-grained configuration options.
 
+## Installation
+
+To install from PyPI, on any supported platform enter:
+
+```
+pip install Dtls
+```
+
 ## Design Goals
 
 The primary design goal of PyDTLS is broad availability. It has therefore
