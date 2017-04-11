@@ -1,3 +1,12 @@
+2017-04-10  Ray Brown  <code@liquibits.com>
+
+	Release 1.2.2
+
+	Produce a Pure Python Wheel instead of a source distribution for Linux. This speeds up installation and simplifies distribution building.
+
+	* setup.py: Drop support for sdist; add support for bdist_wheel without --plat-name switch; persist README.rst; increment version
+	* dtls/__init__.py: Increment version
+
 2017-04-06  Ray Brown  <code@liquibits.com>
 
 	Installation Fixes and Improvements

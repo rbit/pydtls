@@ -29,11 +29,11 @@ from pickle import dump, load
 from setuptools import setup
 
 NAME = "Dtls"
-VERSION = "1.2.0"
+VERSION = "1.2.2"
 
 if __name__ == "__main__":
     # Full upload sequence for new version:
-    #    1. python setup.py sdist
+    #    1. python setup.py bdist_wheel
     #    2. python setup.py bdist_wheel -p win32
     #    3. python setup.py bdist_wheel -p win_amd64
     #    4. twine upload dist/*
@@ -43,31 +43,36 @@ if __name__ == "__main__":
     parser.add_argument("command", nargs="*")
     parser.add_argument("-p", "--plat-name")
     args = parser.parse_known_args()[0]
-    sdist = "sdist" in args.command and not args.help
-    bdist = "bdist_wheel" in args.command and not args.help
-    if sdist or bdist:
+    dist = "bdist_wheel" in args.command and not args.help
+    plat_dist = dist and args.plat_name
+    if dist:
         from pypandoc import convert
         long_description = convert("README.md", "rst")\
                            .translate({ord("\r"): None})
+        with open("README.rst", "wb") as readme:
+            readme.write(long_description)
     else:
-        long_description = open("README.md").read()
+        long_description = open("README.rst").read()
     top_package_plat_files_file = "dtls_package_files"
-    if bdist:
-        prebuilt_platform_root = "dtls/prebuilt"
-        if args.plat_name == "win32":
-            platform = "win32-x86"
-        elif args.plat_name == "win_amd64":
-            platform = "win32-x86_64"
+    if dist:
+        if plat_dist:
+            prebuilt_platform_root = "dtls/prebuilt"
+            if args.plat_name == "win32":
+                platform = "win32-x86"
+            elif args.plat_name == "win_amd64":
+                platform = "win32-x86_64"
+            else:
+                raise ValueError("Unknown platform")
+            prebuilt_path = prebuilt_platform_root + "/" + platform
+            config = {"MANIFEST_DIR": prebuilt_path}
+            execfile(prebuilt_path + "/manifest.pycfg", config)
+            top_package_plat_files = map(lambda x: prebuilt_path + "/" + x,
+                                         config["FILES"])
+            # Save top_package_plat_files with the distribution archive
+            with open(top_package_plat_files_file, "wb") as fl:
+                dump(top_package_plat_files, fl)
         else:
-            raise ValueError("Unknown platform")
-        prebuilt_path = prebuilt_platform_root + "/" + platform
-        config = {"MANIFEST_DIR": prebuilt_path}
-        execfile(prebuilt_path + "/manifest.pycfg", config)
-        top_package_plat_files = map(lambda x: prebuilt_path + "/" + x,
-                                     config["FILES"])
-        # Save top_package_plat_files with the distribution archive
-        with open(top_package_plat_files_file, "wb") as fl:
-            dump(top_package_plat_files, fl)
+            top_package_plat_files = []
     else:
         # Load top_package_files from the distribution archive, if present
         try:
@@ -79,8 +84,9 @@ if __name__ == "__main__":
                                "LICENSE",
                                "README.md",
                                "ChangeLog"] + top_package_plat_files
-    for extra_file in top_package_extra_files:
-        copy2(extra_file, "dtls")
+    if dist:
+        for extra_file in top_package_extra_files:
+            copy2(extra_file, "dtls")
     top_package_extra_files = [path.basename(f)
                                for f in top_package_extra_files]
     setup(name=NAME,
@@ -108,11 +114,13 @@ if __name__ == "__main__":
                                       "openssl_ca.cnf",
                                       "openssl_server.cnf",
                                       "certs/*.pem"]},
-          data_files=[('', [top_package_plat_files_file])]
+          data_files=[('', [top_package_plat_files_file])] if plat_dist else []
     )
-    for extra_file in top_package_extra_files:
-        remove("dtls/" + extra_file)
-    if bdist:
-        remove(top_package_plat_files_file)
-    rmtree("Dtls.egg-info", True)
-    rmtree("build", True)
+    if dist:
+        remove("README.rst")
+        for extra_file in top_package_extra_files:
+            remove("dtls/" + extra_file)
+        if plat_dist:
+            remove(top_package_plat_files_file)
+        rmtree("Dtls.egg-info", True)
+        rmtree("build", True)
