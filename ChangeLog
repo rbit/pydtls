@@ -43,6 +43,12 @@
 
 2017-03-28  Björn Freise  <mcfreis@gmx.net>
 
+	Changed hardcoded MTU to 576
+
+	* dtls/sslconnection.py: Changed hardcoded MTU for Windows to 576; this doesn't fragment application datagrams
+
+2017-03-28  Björn Freise  <mcfreis@gmx.net>
+
 	Workaround for Windows concerning the MTU size
 
 	* dtls/sslconnection.py: Hardcoded setting of the MTU size only for Windows and in case it is not already configured

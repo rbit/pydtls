@@ -572,6 +572,7 @@ class SSLConnection(object):
         self._wbio.disown()
         if post_init:
             post_init()
+
     def get_socket(self, inbound):
         """Retrieve a socket used by this connection
 
