@@ -1,3 +1,11 @@
+2017-04-27  Ray Brown  <code@liquibits.com>
+
+	Release 1.2.3
+
+	* dtls/wrapper.py: Add optional parameter to DtlsSocket: client_timeout (seconds). If client_timeout is specified, clients that have not communicated within the time frame will be dropped.
+	* setup.py: Version incremented to 1.2.3
+	* dtls/__init__.py: Increment version
+
 2017-04-10  Ray Brown  <code@liquibits.com>
 
 	Release 1.2.2

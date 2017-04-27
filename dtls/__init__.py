@@ -32,7 +32,7 @@ sockets.
 wrap_socket's parameters and their semantics have been maintained.
 """
 
-VERSION = 1, 2, 2
+VERSION = 1, 2, 3
 
 def _prep_bins():
     """
