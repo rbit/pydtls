@@ -48,7 +48,7 @@ def _prep_bins():
     prebuilt_path = path.join(package_root, "prebuilt", platform + bit_suffix)
     config = {"MANIFEST_DIR": prebuilt_path}
     try:
-        execfile(path.join(prebuilt_path, "manifest.pycfg"), config)
+        exec(compile(open(path.join(prebuilt_path, "manifest.pycfg"), "rb").read()), config)
     except IOError:
         return  # there are no prebuilts for this platform - nothing to do
     files = map(lambda x: path.join(prebuilt_path, x), config["FILES"])

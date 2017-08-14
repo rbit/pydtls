@@ -49,10 +49,10 @@ if __name__ == "__main__":
         from pypandoc import convert
         long_description = convert("README.md", "rst")\
                            .translate({ord("\r"): None})
-        with open("README.rst", "wb") as readme:
+        with open("README.rst", "w") as readme:
             readme.write(long_description)
     else:
-        long_description = open("README.rst").read()
+        long_description = open("README.md").read()
     top_package_plat_files_file = "dtls_package_files"
     if dist:
         if plat_dist:
