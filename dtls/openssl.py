@@ -65,8 +65,8 @@ if sys.platform.startswith('win'):
     libcrypto = CDLL(cryptodll_path)
     libssl = CDLL(ssldll_path)
 else:
-    libcrypto = CDLL("libcrypto.so.1.0.0")
-    libssl = CDLL("libssl.so.1.0.0")
+    libcrypto = CDLL("libcrypto.so.1.0.2")
+    libssl = CDLL("libssl.so.1.0.2")
 
 #
 # Integer constants - exported

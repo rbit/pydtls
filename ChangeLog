@@ -1,3 +1,10 @@
+2017-12-07  Angelo Moura <angelo.moura@sec4you.com.br>
+
+        Release 1.2.4
+
+        * dtls/openssl.py: Fixing issue #15
+        * setup.py: Fixing issue on setup.py install can't find README.rst
+
 2017-04-27  Ray Brown  <code@liquibits.com>
 
 	Release 1.2.3

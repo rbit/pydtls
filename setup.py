@@ -29,7 +29,7 @@ from pickle import dump, load
 from setuptools import setup
 
 NAME = "Dtls"
-VERSION = "1.2.3"
+VERSION = "1.2.4"
 
 if __name__ == "__main__":
     # Full upload sequence for new version:
@@ -52,7 +52,7 @@ if __name__ == "__main__":
         with open("README.rst", "wb") as readme:
             readme.write(long_description)
     else:
-        long_description = open("README.rst").read()
+        long_description = "Description"
     top_package_plat_files_file = "dtls_package_files"
     if dist:
         if plat_dist:
